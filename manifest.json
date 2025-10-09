@@ -1,0 +1,11 @@
+{
+	"id": "map",
+	"name": "Map",
+	"version": "1.0.0",
+	"minAppVersion": "0.15.0",
+	"description": "A performant and customizable map inside Bases",
+	"author": "ccmdi",
+	"authorUrl": "https://github.com/ccmdi",
+	"fundingUrl": "https://github.com/sponsors/ccmdi",
+	"isDesktopOnly": false
+}
