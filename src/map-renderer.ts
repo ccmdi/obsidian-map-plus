@@ -172,29 +172,18 @@ function handlePointClick(info: PickingInfo<DeckDataPoint>, event: MjolnirEvent,
     }
 }
 
-export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], config: Pick<MapRendererOptions, 'settings' | 'tagSettings' | 'options' | 'app'>): void {
-    const { settings, tagSettings, options, app } = config;
-
-    const markerType = options.markerType || 'pins';
-    const markerSize = options.markerSize || 100;
-    const defaultColor = options.markerColor || 'var(--color-accent)';
-
-    const deckData: DeckDataPoint[] = points.map(point => ({
-        position: [point.lng, point.lat] as [number, number],
-        color: parseColor(getPointColor(point, tagSettings, defaultColor)),
-        radius: point.size || markerSize,
-        point: point,
-    }));
-
-    const currentLayers = deck.props.layers;
-    if (!currentLayers || currentLayers.length === 0) return;
-
-    const tileLayer = currentLayers[0];
-
-    const markerLayer = markerType === 'pins'
-        ? new IconLayer({
+function createMarkerLayer(
+    data: DeckDataPoint[],
+    markerType: 'pins' | 'dots',
+    settings: MapPlugin['settings'],
+    tagSettings: MapTagSettings | undefined,
+    options: MapRendererOptions['options'],
+    app: App
+) {
+    if (markerType === 'pins') {
+        return new IconLayer({
             id: 'icon-layer',
-            data: deckData,
+            data: data,
             pickable: true,
             getIcon: (d: DeckDataPoint) => {
                 const [r, g, b] = d.color;
@@ -229,10 +218,11 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
             sizeMinPixels: 8,
             sizeMaxPixels: 60,
             onClick: (info: PickingInfo<DeckDataPoint>, event: MjolnirEvent) => handlePointClick(info, event, options, app),
-        })
-        : new ScatterplotLayer({
+        });
+    } else {
+        return new ScatterplotLayer({
             id: 'scatterplot-layer',
-            data: deckData,
+            data: data,
             pickable: true,
             opacity: 0.8,
             stroked: false,
@@ -245,6 +235,29 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
             getFillColor: (d: DeckDataPoint) => d.color,
             onClick: (info: PickingInfo<DeckDataPoint>, event: MjolnirEvent) => handlePointClick(info, event, options, app),
         });
+    }
+}
+
+export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], config: Pick<MapRendererOptions, 'settings' | 'tagSettings' | 'options' | 'app'>): void {
+    const { settings, tagSettings, options, app } = config;
+
+    const markerType = options.markerType || 'pins';
+    const markerSize = options.markerSize || 100;
+    const defaultColor = options.markerColor || 'var(--color-accent)';
+
+    const deckData: DeckDataPoint[] = points.map(point => ({
+        position: [point.lng, point.lat] as [number, number],
+        color: parseColor(getPointColor(point, tagSettings, defaultColor)),
+        radius: point.size || markerSize,
+        point: point,
+    }));
+
+    const currentLayers = deck.props.layers;
+    if (!currentLayers || currentLayers.length === 0) return;
+
+    const tileLayer = currentLayers[0];
+
+    const markerLayer = createMarkerLayer(deckData, markerType, settings, tagSettings, options, app);
 
     deck.setProps({ layers: [tileLayer, markerLayer] });
 }
@@ -402,65 +415,6 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
         }
     };
 
-    const createMarkerLayer = (data: DeckDataPoint[]) => {
-        if (markerType === 'pins') {
-            return new IconLayer({
-                id: 'icon-layer',
-                data: data,
-                pickable: true,
-                getIcon: (d: DeckDataPoint) => {
-                    const [r, g, b] = d.color;
-                    const icon = getPointIcon(d.point, tagSettings);
-
-                    let innerContent = `<circle cx="12" cy="12" r="4" fill="white"/>`;
-
-                    if (icon) {
-                        const iconSVG = getIconSVG(icon, settings.strokeWidth, settings.iconFill);
-                        if (iconSVG) {
-                            innerContent = `<g transform="translate(3.5, 3.5) scale(0.7)" style="color: white;">${iconSVG}</g>`;
-                        }
-                    }
-
-                    return {
-                        url:
-                            'data:image/svg+xml;charset=utf-8,' +
-                            encodeURIComponent(
-                                `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="36" viewBox="0 0 24 36">
-                                    <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24c0-6.6-5.4-12-12-12z" fill="rgb(${r},${g},${b})"/>
-                                    ${innerContent}
-                                </svg>`
-                            ),
-                        width: 24,
-                        height: 36,
-                        anchorY: 36,
-                    };
-                },
-                getPosition: (d: DeckDataPoint) => d.position,
-                getSize: (d: DeckDataPoint) => d.radius * 0.3,
-                sizeScale: 1,
-                sizeMinPixels: 8,
-                sizeMaxPixels: 60,
-                onClick: (info: PickingInfo<DeckDataPoint>, event: MjolnirEvent) => handlePointClick(info, event, options, app),
-            });
-        } else {
-            return new ScatterplotLayer({
-                id: 'scatterplot-layer',
-                data: data,
-                pickable: true,
-                opacity: 0.8,
-                stroked: false,
-                filled: true,
-                radiusScale: 1,
-                radiusMinPixels: 3,
-                radiusMaxPixels: 100,
-                getPosition: (d: DeckDataPoint) => d.position,
-                getRadius: (d: DeckDataPoint) => d.radius,
-                getFillColor: (d: DeckDataPoint) => d.color,
-                onClick: (info: PickingInfo<DeckDataPoint>, event: MjolnirEvent) => handlePointClick(info, event, options, app),
-            });
-        }
-    };
-
     const deck = new Deck({
         canvas: mapCanvas,
         initialViewState: { MapView: initialViewState },
@@ -539,7 +493,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
                     });
                 },
             }),
-            createMarkerLayer(deckData),
+            createMarkerLayer(deckData, markerType, settings, tagSettings, options, app),
         ],
     });
 
