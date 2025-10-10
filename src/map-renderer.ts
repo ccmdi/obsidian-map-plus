@@ -1,5 +1,5 @@
 import { App, TFile, setIcon } from 'obsidian';
-import { Deck, PickingInfo, MapViewState } from '@deck.gl/core';
+import { Deck, PickingInfo, MapViewState, FlyToInterpolator } from '@deck.gl/core';
 import { BitmapLayer, IconLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { TileLayer } from '@deck.gl/geo-layers';
 import type { TileLayerProps, _Tile2DHeader as Tile2DHeader } from '@deck.gl/geo-layers';
@@ -8,6 +8,10 @@ import { MapView as MapViewType } from '@deck.gl/core';
 
 import { MapTagSettings } from './settings/map-tag-settings';
 import type MapPlugin from './main';
+
+function easeCubic(t: number): number {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
 
 type PropertyValue = string | number | boolean | string[] | null;
 
@@ -308,14 +312,16 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
     // Update layers
     deck.setProps({ layers: [tileLayer, markerLayer] });
 
-    // Smoothly transition view to new bounds
+    // Smoothly transition view to new bounds with easing
     deck.setProps({
         initialViewState: {
             MapView: {
                 ...newViewState,
                 pitch: 0,
                 bearing: 0,
-                transitionDuration: 1000,
+                transitionDuration: 800,
+                transitionInterpolator: new FlyToInterpolator(),
+                transitionEasing: easeCubic,
             }
         }
     });
