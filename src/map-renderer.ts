@@ -134,8 +134,7 @@ function getIconSVG(iconName: string, strokeWidth: number, fill: boolean): strin
             if (clonedSvg instanceof SVGElement) {
                 clonedSvg.setAttribute('stroke-width', String(strokeWidth));
                 if (fill) {
-                    const fillableElements = clonedSvg.querySelectorAll('[fill]');
-                    fillableElements.forEach((el) => {
+                    clonedSvg.querySelectorAll('path, circle, rect, polygon, ellipse, line, polyline').forEach((el) => {
                         el.setAttribute('fill', 'white');
                     });
                 }
@@ -206,7 +205,7 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
                 if (icon) {
                     const iconSVG = getIconSVG(icon, settings.strokeWidth, settings.iconFill);
                     if (iconSVG) {
-                        innerContent = `<g transform="translate(3.5, 3.5) scale(0.7)" fill="white" stroke="white">${iconSVG}</g>`;
+                        innerContent = `<g transform="translate(3.5, 3.5) scale(0.7)" style="color: white;">${iconSVG}</g>`;
                     }
                 }
 
@@ -418,7 +417,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
                     if (icon) {
                         const iconSVG = getIconSVG(icon, settings.strokeWidth, settings.iconFill);
                         if (iconSVG) {
-                            innerContent = `<g transform="translate(3.5, 3.5) scale(0.7)" fill="white" stroke="white">${iconSVG}</g>`;
+                            innerContent = `<g transform="translate(3.5, 3.5) scale(0.7)" style="color: white;">${iconSVG}</g>`;
                         }
                     }
 
