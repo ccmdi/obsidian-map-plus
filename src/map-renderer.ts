@@ -382,18 +382,28 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
 
     // calculate bounds
     let initialViewState: MapViewState;
-    if (options.center && options.center[0] !== 0 && options.center[1] !== 0) {
+    const hasConfiguredCenter = options.center && (options.center[0] !== 0 || options.center[1] !== 0);
+
+    if (hasConfiguredCenter && options.zoom) {
         initialViewState = {
-            longitude: options.center[1],
-            latitude: options.center[0],
-            zoom: options.zoom || 4,
+            longitude: options.center![1],
+            latitude: options.center![0],
+            zoom: options.zoom,
+            pitch: 0,
+            bearing: 0,
+        };
+    } else if (points.length > 0) {
+        const bounds = calculateBounds(points, containerEl);
+        initialViewState = {
+            ...bounds,
             pitch: 0,
             bearing: 0,
         };
     } else {
-        const bounds = calculateBounds(points, containerEl);
         initialViewState = {
-            ...bounds,
+            longitude: 0,
+            latitude: 0,
+            zoom: 2,
             pitch: 0,
             bearing: 0,
         };
@@ -402,6 +412,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
     let currentCursor = 'grab';
     let currentPoint: MapPoint | null = null;
     let tooltipUpdateId = 0;
+    let tilesLoadedCalled = false;
 
     const updateTooltip = async (point: MapPoint, x: number, y: number) => {
         const thisUpdateId = ++tooltipUpdateId;
@@ -496,10 +507,11 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
         },
         views: [new MapViewType({ repeat: true })],
         onAfterRender: () => {
-            if (options.onTilesLoaded) {
+            if (options.onTilesLoaded && !tilesLoadedCalled) {
+                tilesLoadedCalled = true;
                 setTimeout(() => {
                     options.onTilesLoaded?.();
-                }, 100);
+                }, 200);
             }
         },
         getCursor: () => currentCursor,

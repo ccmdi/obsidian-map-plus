@@ -211,6 +211,21 @@ export class MapBasesView extends BasesView {
             }, 300);
         };
 
+        const hasConfiguredCenter = this.center[0] !== 0 || this.center[1] !== 0;
+        let centerToUse: [number, number];
+        let zoomToUse: number;
+
+        if (hasConfiguredCenter) {
+            centerToUse = this.center;
+            zoomToUse = this.defaultZoom;
+        } else if (this.savedViewState) {
+            centerToUse = [this.savedViewState.latitude, this.savedViewState.longitude];
+            zoomToUse = this.savedViewState.zoom;
+        } else {
+            centerToUse = this.center;
+            zoomToUse = this.defaultZoom;
+        }
+
         this.deck = await createMapRenderer({
             containerEl: this.mapEl,
             points,
@@ -218,8 +233,8 @@ export class MapBasesView extends BasesView {
             settings: settings,
             tagSettings: tagSettings,
             options: {
-                center: this.savedViewState ? [this.savedViewState.latitude, this.savedViewState.longitude] : this.center,
-                zoom: this.savedViewState ? this.savedViewState.zoom : this.defaultZoom,
+                center: centerToUse,
+                zoom: zoomToUse,
                 height: height,
                 markerType: this.markerType,
                 tileLayer: this.tileLayer,
@@ -256,7 +271,6 @@ export class MapBasesView extends BasesView {
 
         const points = this.extractPointsFromData();
 
-        // If center coordinates are configured, use them instead of auto-centering
         const hasConfiguredCenter = this.center[0] !== 0 || this.center[1] !== 0;
 
         updateMapPoints(this.deck, points, {
