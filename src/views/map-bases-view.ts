@@ -258,7 +258,8 @@ export class MapBasesView extends BasesView {
             settings: this.plugin.settings,
             tagSettings: this.plugin.tagSettings,
             options: {
-                markerType: this.markerType
+                markerType: this.markerType,
+                autoCenter: this.plugin.settings.autoCenter
             }
         });
     }

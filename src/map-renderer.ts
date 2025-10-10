@@ -62,6 +62,7 @@ export interface MapRendererOptions {
         tileLayer?: string;
         showSearch?: boolean;
         showTags?: boolean;
+        autoCenter?: boolean;
         onMarkerClick?: (point: MapPoint, event: MjolnirEvent) => void;
         onTilesLoaded?: () => void;
     };
@@ -188,34 +189,33 @@ function calculateBounds(points: MapPoint[], containerEl: HTMLElement): { latitu
     const centerLat = (maxLat + minLat) / 2;
     const centerLng = (maxLng + minLng) / 2;
 
-    // Calculate range with minimum thresholds to handle clustered points
-    let latRange = Math.max(maxLat - minLat, 0.01);
-    let lngRange = Math.max(maxLng - minLng, 0.01);
+    // Add padding (20% on each side)
+    const padding = 1.4; // 1 + 0.2*2 for both sides
+    const latRange = (maxLat - minLat) * padding;
+    const lngRange = (maxLng - minLng) * padding;
 
-    // Add 20% padding to the bounds
-    const paddingFactor = 0.2;
-    latRange = latRange * (1 + paddingFactor * 2);
-    lngRange = lngRange * (1 + paddingFactor * 2);
+    // Handle single point or very clustered points
+    const minRange = 0.01; // Roughly ~1km
+    const adjustedLatRange = Math.max(latRange, minRange);
+    const adjustedLngRange = Math.max(lngRange, minRange);
 
     // Get container dimensions
-    const containerWidth = containerEl.clientWidth || 800;
-    const containerHeight = containerEl.clientHeight || 600;
+    const width = containerEl.clientWidth || 800;
+    const height = containerEl.clientHeight || 600;
 
-    // Web Mercator zoom calculation
-    const lngZoom = Math.log2((containerWidth / 256) * (360 / lngRange));
+    // Calculate zoom level to fit bounds
+    // At zoom level z, the world is 256 * 2^z pixels wide
+    const WORLD_SIZE = 256;
+    const latZoom = Math.log2(height / (adjustedLatRange * WORLD_SIZE / 180));
+    const lngZoom = Math.log2(width / (adjustedLngRange * WORLD_SIZE / 360));
 
-    // For latitude, account for Mercator projection distortion
-    const latRadians = centerLat * Math.PI / 180;
-    const latitudeFactor = Math.cos(latRadians);
-    const latZoom = Math.log2((containerHeight / 256) * (180 / latRange) * latitudeFactor);
-
-    // Use the smaller zoom (more zoomed out) to ensure everything fits
-    const autoZoom = Math.max(1, Math.min(18, Math.floor(Math.min(lngZoom, latZoom)) - 0.5));
+    // Use the smaller zoom to ensure everything fits, and clamp
+    const zoom = Math.max(1, Math.min(18, Math.min(latZoom, lngZoom) - 0.5));
 
     return {
         latitude: centerLat,
         longitude: centerLng,
-        zoom: autoZoom,
+        zoom: zoom,
     };
 }
 
@@ -291,6 +291,7 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
     const markerType = options.markerType || 'pins';
     const markerSize = options.markerSize || 100;
     const defaultColor = options.markerColor || 'var(--color-accent)';
+    const autoCenter = options.autoCenter !== false; // Default to true
 
     const deckData: DeckDataPoint[] = points.map(point => ({
         position: [point.lng, point.lat] as [number, number],
@@ -306,25 +307,28 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
 
     const markerLayer = createMarkerLayer(deckData, markerType, settings, tagSettings, options, app);
 
-    // Calculate new bounds and smoothly transition to them
-    const newViewState = calculateBounds(points, containerEl);
-
     // Update layers
     deck.setProps({ layers: [tileLayer, markerLayer] });
 
-    // Smoothly transition view to new bounds with easing
-    deck.setProps({
-        initialViewState: {
-            MapView: {
-                ...newViewState,
-                pitch: 0,
-                bearing: 0,
-                transitionDuration: 800,
-                transitionInterpolator: new FlyToInterpolator(),
-                transitionEasing: easeCubic,
+    // Only auto-center if enabled and we have points
+    if (autoCenter && points.length > 0) {
+        // Calculate new bounds and smoothly transition to them
+        const newViewState = calculateBounds(points, containerEl);
+
+        // Smoothly transition view to new bounds with easing
+        deck.setProps({
+            initialViewState: {
+                MapView: {
+                    ...newViewState,
+                    pitch: 0,
+                    bearing: 0,
+                    transitionDuration: 800,
+                    transitionInterpolator: new FlyToInterpolator(),
+                    transitionEasing: easeCubic,
+                }
             }
-        }
-    });
+        });
+    }
 }
 
 export async function createMapRenderer(config: MapRendererOptions): Promise<Deck<MapViewType[]>> {

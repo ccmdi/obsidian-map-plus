@@ -62,6 +62,16 @@ export class MapSettingTab extends PluginSettingTab {
                     this.plugin.refreshAllMapViews();
                 }));
 
+        new Setting(containerEl)
+            .setName('Auto-center on update')
+            .setDesc('Automatically zoom and center map when data changes')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.autoCenter)
+                .onChange(async (value) => {
+                    this.plugin.settings.autoCenter = value;
+                    await this.plugin.saveSettings();
+                }));
+
         renderTagCustomizations(containerEl, this.app, this.plugin);
     }
 }
