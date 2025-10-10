@@ -71,13 +71,13 @@ function handlePointClick(info: PickingInfo<DeckDataPoint>, event: MjolnirEvent,
             const file = typeof info.object.point.file === 'string'
                 ? app.vault.getAbstractFileByPath(info.object.point.file)
                 : info.object.point.file;
-            if (file) {
+            if (file instanceof TFile) {
                 const srcEvent = event?.srcEvent;
                 const newTab =
                     (srcEvent && 'button' in srcEvent && srcEvent.button === 1) ||
                     srcEvent?.ctrlKey ||
                     srcEvent?.metaKey;
-                app.workspace.getLeaf(newTab).openFile(file as TFile);
+                app.workspace.getLeaf(newTab).openFile(file);
             }
         }
     }
@@ -157,13 +157,20 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
             setIcon(tempDiv, iconName);
             const svg = tempDiv.querySelector('svg');
             if (svg) {
-                let svgContent = svg.outerHTML;
-                svgContent = svgContent.replace(/stroke-width="[^"]*"/g, `stroke-width="${strokeWidth}"`);
-                if (fill) {
-                    svgContent = svgContent.replace(/fill="[^"]*"/g, 'fill="white"');
+                const clonedSvg = svg.cloneNode(true);
+                if (clonedSvg instanceof SVGElement) {
+                    clonedSvg.setAttribute('stroke-width', String(strokeWidth));
+                    if (fill) {
+                        const fillableElements = clonedSvg.querySelectorAll('[fill]');
+                        fillableElements.forEach((el) => {
+                            el.setAttribute('fill', 'white');
+                        });
+                    }
+                    const serializer = new XMLSerializer();
+                    const svgContent = serializer.serializeToString(clonedSvg);
+                    iconSVGCache.set(cacheKey, svgContent);
+                    return svgContent;
                 }
-                iconSVGCache.set(cacheKey, svgContent);
-                return svgContent;
             }
         } catch (e) {
             // Icon not available
@@ -199,7 +206,7 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
                 if (icon) {
                     const iconSVG = getIconSVG(icon, settings.strokeWidth, settings.iconFill);
                     if (iconSVG) {
-                        innerContent = `<g transform="translate(3.5, 3.5) scale(0.7)" style="color: white;">${iconSVG}</g>`;
+                        innerContent = `<g transform="translate(3.5, 3.5) scale(0.7)" fill="white" stroke="white">${iconSVG}</g>`;
                     }
                 }
 
@@ -465,13 +472,20 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
             setIcon(tempDiv, iconName);
             const svg = tempDiv.querySelector('svg');
             if (svg) {
-                let svgContent = svg.outerHTML;
-                svgContent = svgContent.replace(/stroke-width="[^"]*"/g, `stroke-width="${strokeWidth}"`);
-                if (fill) {
-                    svgContent = svgContent.replace(/fill="[^"]*"/g, 'fill="white"');
+                const clonedSvg = svg.cloneNode(true);
+                if (clonedSvg instanceof SVGElement) {
+                    clonedSvg.setAttribute('stroke-width', String(strokeWidth));
+                    if (fill) {
+                        const fillableElements = clonedSvg.querySelectorAll('[fill]');
+                        fillableElements.forEach((el) => {
+                            el.setAttribute('fill', 'white');
+                        });
+                    }
+                    const serializer = new XMLSerializer();
+                    const svgContent = serializer.serializeToString(clonedSvg);
+                    iconSVGCache.set(cacheKey, svgContent);
+                    return svgContent;
                 }
-                iconSVGCache.set(cacheKey, svgContent);
-                return svgContent;
             }
         } catch (e) {
             console.warn('Failed to get icon SVG:', iconName, e);
@@ -496,7 +510,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
                     if (icon) {
                         const iconSVG = getIconSVG(icon, settings.strokeWidth, settings.iconFill);
                         if (iconSVG) {
-                            innerContent = `<g transform="translate(3.5, 3.5) scale(0.7)" style="color: white;">${iconSVG}</g>`;
+                            innerContent = `<g transform="translate(3.5, 3.5) scale(0.7)" fill="white" stroke="white">${iconSVG}</g>`;
                         }
                     }
 
