@@ -64,25 +64,23 @@ export interface MapRendererOptions {
 }
 
 
-function hexToRgb(hex: string): [number, number, number] {
-    // Handle CSS variables like var(--color-accent)
-    if (hex.startsWith('var(')) {
-        const tempEl = document.body.createDiv();
-        tempEl.style.color = hex;
-        document.body.appendChild(tempEl);
-        const computedColor = getComputedStyle(tempEl).color;
-        document.body.removeChild(tempEl);
+function parseColor(color: string): [number, number, number] {
+    const tempEl = document.body.createDiv();
+    tempEl.style.color = color;
+    document.body.appendChild(tempEl);
+    const computedColor = getComputedStyle(tempEl).color;
+    document.body.removeChild(tempEl);
 
-        const rgbMatch = computedColor.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
-        if (rgbMatch) {
-            return [parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3])];
-        }
+    const rgbMatch = computedColor.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (rgbMatch) {
+        return [
+            parseInt(rgbMatch[1]),
+            parseInt(rgbMatch[2]),
+            parseInt(rgbMatch[3])
+        ];
     }
 
-    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-    return result
-        ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
-        : [118, 109, 243];
+    return [0, 0, 0];
 }
 
 function getPointColor(point: MapPoint, tagSettings: MapTagSettings | undefined, defaultColor: string): string {
@@ -184,7 +182,7 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
 
     const deckData: DeckDataPoint[] = points.map(point => ({
         position: [point.lng, point.lat] as [number, number],
-        color: hexToRgb(getPointColor(point, tagSettings, defaultColor)),
+        color: parseColor(getPointColor(point, tagSettings, defaultColor)),
         radius: point.size || markerSize,
         point: point,
     }));
@@ -275,7 +273,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
         const point = points[i];
         deckData[i] = {
             position: [point.lng, point.lat] as [number, number],
-            color: hexToRgb(getPointColor(point, tagSettings, markerColor)),
+            color: parseColor(getPointColor(point, tagSettings, markerColor)),
             radius: point.size || markerSize,
             point: point,
         };
