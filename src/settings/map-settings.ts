@@ -40,8 +40,7 @@ export class MapSettingTab extends PluginSettingTab {
                 }));
         
         new Setting(containerEl)
-            .setName('Stroke width')
-            .setDesc('Stroke width for icons')
+            .setName('Stroke width for icons')
             .addSlider(slider => slider
                 .setLimits(0.5, 5, 0.1)
                 .setValue(this.plugin.settings.strokeWidth)
