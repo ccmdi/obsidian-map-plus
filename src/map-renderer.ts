@@ -23,7 +23,7 @@ export interface MapPoint {
     color?: string;
     size?: number;
     cover?: string;
-    file?: TFile | string;
+    file?: TFile;
     tags?: string[];
     properties?: MapProperty[];
 }
@@ -153,22 +153,20 @@ function getIconSVG(iconName: string, strokeWidth: number, fill: boolean): strin
 }
 
 function handlePointClick(info: PickingInfo<DeckDataPoint>, event: MjolnirEvent, options: MapRendererOptions['options'], app: App) {
-    if (info.object) {
-        if (options.onMarkerClick) {
-            options.onMarkerClick(info.object.point, event);
-        } else if (info.object.point.file) {
-            const file = typeof info.object.point.file === 'string'
-                ? app.vault.getAbstractFileByPath(info.object.point.file)
-                : info.object.point.file;
-            if (file instanceof TFile) {
-                const srcEvent = event?.srcEvent;
-                const newTab =
-                    (srcEvent && 'button' in srcEvent && srcEvent.button === 1) ||
-                    srcEvent?.ctrlKey ||
-                    srcEvent?.metaKey;
-                app.workspace.getLeaf(newTab).openFile(file);
-            }
-        }
+    if (!info.object) return;
+
+    if (options.onMarkerClick) {
+        options.onMarkerClick(info.object.point, event);
+        return;
+    }
+
+    if (info.object.point.file) {
+        const srcEvent = event?.srcEvent;
+        const newTab =
+            (srcEvent && 'button' in srcEvent && srcEvent.button === 1) ||
+            srcEvent?.ctrlKey ||
+            srcEvent?.metaKey;
+        app.workspace.getLeaf(newTab).openFile(info.object.point.file);
     }
 }
 
@@ -339,8 +337,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
 
         // show cover image
         if (point.cover && point.file) {
-            const filePath = typeof point.file === 'string' ? point.file : point.file.path;
-            const coverFile = app.metadataCache.getFirstLinkpathDest(point.cover, filePath);
+            const coverFile = app.metadataCache.getFirstLinkpathDest(point.cover, point.file.path);
             if (coverFile) {
                 const img = new Image();
                 img.classList.add('map-tooltip-cover-image');
