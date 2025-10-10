@@ -116,7 +116,11 @@ export class MapBasesView extends BasesView {
             const parts = centerVal.split(',').map(p => parseFloat(p.trim()));
             if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
                 this.center = [parts[0], parts[1]];
+            } else {
+                this.center = [0, 0]; // Reset if invalid
             }
+        } else {
+            this.center = [0, 0]; // Reset if not configured
         }
 
         const markerTypeVal = this.config.get('markerType');
@@ -207,6 +211,21 @@ export class MapBasesView extends BasesView {
             }, 300);
         };
 
+        const hasConfiguredCenter = this.center[0] !== 0 || this.center[1] !== 0;
+        let centerToUse: [number, number];
+        let zoomToUse: number;
+
+        if (hasConfiguredCenter) {
+            centerToUse = this.center;
+            zoomToUse = this.defaultZoom;
+        } else if (this.savedViewState) {
+            centerToUse = [this.savedViewState.latitude, this.savedViewState.longitude];
+            zoomToUse = this.savedViewState.zoom;
+        } else {
+            centerToUse = this.center;
+            zoomToUse = this.defaultZoom;
+        }
+
         this.deck = await createMapRenderer({
             containerEl: this.mapEl,
             points,
@@ -214,8 +233,8 @@ export class MapBasesView extends BasesView {
             settings: settings,
             tagSettings: tagSettings,
             options: {
-                center: this.savedViewState ? [this.savedViewState.latitude, this.savedViewState.longitude] : this.center,
-                zoom: this.savedViewState ? this.savedViewState.zoom : this.defaultZoom,
+                center: centerToUse,
+                zoom: zoomToUse,
                 height: height,
                 markerType: this.markerType,
                 tileLayer: this.tileLayer,
@@ -252,12 +271,18 @@ export class MapBasesView extends BasesView {
 
         const points = this.extractPointsFromData();
 
+        const hasConfiguredCenter = this.center[0] !== 0 || this.center[1] !== 0;
+
         updateMapPoints(this.deck, points, {
+            containerEl: this.mapEl,
             app: this.app,
             settings: this.plugin.settings,
             tagSettings: this.plugin.tagSettings,
             options: {
-                markerType: this.markerType
+                markerType: this.markerType,
+                center: hasConfiguredCenter ? this.center : undefined,
+                zoom: hasConfiguredCenter ? this.defaultZoom : undefined,
+                autoCenter: this.plugin.settings.autoCenter && !hasConfiguredCenter
             }
         });
     }

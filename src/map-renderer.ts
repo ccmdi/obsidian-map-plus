@@ -1,5 +1,5 @@
 import { App, TFile, setIcon } from 'obsidian';
-import { Deck, PickingInfo, MapViewState } from '@deck.gl/core';
+import { Deck, PickingInfo, MapViewState, FlyToInterpolator } from '@deck.gl/core';
 import { BitmapLayer, IconLayer, ScatterplotLayer } from '@deck.gl/layers';
 import { TileLayer } from '@deck.gl/geo-layers';
 import type { TileLayerProps, _Tile2DHeader as Tile2DHeader } from '@deck.gl/geo-layers';
@@ -8,6 +8,10 @@ import { MapView as MapViewType } from '@deck.gl/core';
 
 import { MapTagSettings } from './settings/map-tag-settings';
 import type MapPlugin from './main';
+
+function easeCubic(t: number): number {
+    return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+}
 
 type PropertyValue = string | number | boolean | string[] | null;
 
@@ -23,7 +27,7 @@ export interface MapPoint {
     color?: string;
     size?: number;
     cover?: string;
-    file?: TFile | string;
+    file?: TFile;
     tags?: string[];
     properties?: MapProperty[];
 }
@@ -58,141 +62,179 @@ export interface MapRendererOptions {
         tileLayer?: string;
         showSearch?: boolean;
         showTags?: boolean;
+        autoCenter?: boolean;
         onMarkerClick?: (point: MapPoint, event: MjolnirEvent) => void;
         onTilesLoaded?: () => void;
     };
 }
 
-function handlePointClick(info: PickingInfo<DeckDataPoint>, event: MjolnirEvent, options: MapRendererOptions['options'], app: App) {
-    if (info.object) {
-        if (options.onMarkerClick) {
-            options.onMarkerClick(info.object.point, event);
-        } else if (info.object.point.file) {
-            const file = typeof info.object.point.file === 'string'
-                ? app.vault.getAbstractFileByPath(info.object.point.file)
-                : info.object.point.file;
-            if (file) {
-                const srcEvent = event?.srcEvent;
-                const newTab =
-                    (srcEvent && 'button' in srcEvent && srcEvent.button === 1) ||
-                    srcEvent?.ctrlKey ||
-                    srcEvent?.metaKey;
-                app.workspace.getLeaf(newTab).openFile(file as TFile);
+
+function parseColor(color: string): [number, number, number] {
+    const tempEl = document.body.createDiv();
+    tempEl.style.color = color;
+    document.body.appendChild(tempEl);
+    const computedColor = getComputedStyle(tempEl).color;
+    document.body.removeChild(tempEl);
+
+    const rgbMatch = computedColor.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/);
+    if (rgbMatch) {
+        return [
+            parseInt(rgbMatch[1]),
+            parseInt(rgbMatch[2]),
+            parseInt(rgbMatch[3])
+        ];
+    }
+
+    return [0, 0, 0];
+}
+
+function getPointColor(point: MapPoint, tagSettings: MapTagSettings | undefined, defaultColor: string): string {
+    if (point.color) {
+        return point.color;
+    }
+
+    if (tagSettings && point.tags && point.tags.length > 0) {
+        for (const priorityTag of tagSettings.tagPriority) {
+            if (point.tags.includes(priorityTag)) {
+                const customization = tagSettings.tagCustomizations[priorityTag];
+                if (customization) {
+                    return customization.color;
+                }
             }
         }
     }
+
+    return defaultColor;
 }
 
-export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], config: Pick<MapRendererOptions, 'settings' | 'tagSettings' | 'options' | 'app'>): void {
-    const { settings, tagSettings, options, app } = config;
-
-    const markerType = options.markerType || 'pins';
-    const markerSize = options.markerSize || 100;
-
-    const hexToRgb = (hex: string): [number, number, number] => {
-        // Handle CSS variables like var(--color-accent)
-        if (hex.startsWith('var(')) {
-            const tempEl = document.body.createDiv();
-            tempEl.style.color = hex;
-            document.body.appendChild(tempEl);
-            const computedColor = getComputedStyle(tempEl).color;
-            document.body.removeChild(tempEl);
-
-            const rgbMatch = computedColor.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
-            if (rgbMatch) {
-                return [parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3])];
-            }
-        }
-
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result
-            ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
-            : [118, 109, 243];
-    };
-
-    const getPointColor = (point: MapPoint): string => {
-        if (point.color) {
-            return point.color;
-        }
-
-        if (tagSettings && point.tags && point.tags.length > 0) {
-            for (const priorityTag of tagSettings.tagPriority) {
-                if (point.tags.includes(priorityTag)) {
-                    const customization = tagSettings.tagCustomizations[priorityTag];
-                    if (customization) {
-                        return customization.color;
-                    }
+function getPointIcon(point: MapPoint, tagSettings: MapTagSettings | undefined): string | null {
+    if (tagSettings && point.tags && point.tags.length > 0) {
+        for (const priorityTag of tagSettings.tagPriority) {
+            if (point.tags.includes(priorityTag)) {
+                const customization = tagSettings.tagCustomizations[priorityTag];
+                if (customization && customization.icon) {
+                    return customization.icon;
                 }
             }
         }
+    }
+    return null;
+}
 
-        return options.markerColor || 'var(--color-accent)';
-    };
+const iconSVGCache = new Map<string, string | null>();
 
-    const getPointIcon = (point: MapPoint): string | null => {
-        if (tagSettings && point.tags && point.tags.length > 0) {
-            for (const priorityTag of tagSettings.tagPriority) {
-                if (point.tags.includes(priorityTag)) {
-                    const customization = tagSettings.tagCustomizations[priorityTag];
-                    if (customization && customization.icon) {
-                        return customization.icon;
-                    }
-                }
-            }
-        }
-        return null;
-    };
+function getIconSVG(iconName: string, strokeWidth: number, fill: boolean): string | null {
+    const cacheKey = `${iconName}-${strokeWidth}-${fill}`;
 
-    const iconSVGCache = new Map<string, string | null>();
+    if (iconSVGCache.has(cacheKey)) {
+        return iconSVGCache.get(cacheKey)!;
+    }
 
-    const getIconSVG = (iconName: string, strokeWidth: number, fill: boolean): string | null => {
-        const cacheKey = `${iconName}-${strokeWidth}-${fill}`;
-
-        if (iconSVGCache.has(cacheKey)) {
-            return iconSVGCache.get(cacheKey)!;
-        }
-
-        try {
-            const tempDiv = document.createElement('div');
-            setIcon(tempDiv, iconName);
-            const svg = tempDiv.querySelector('svg');
-            if (svg) {
-                let svgContent = svg.outerHTML;
-                svgContent = svgContent.replace(/stroke-width="[^"]*"/g, `stroke-width="${strokeWidth}"`);
+    try {
+        const tempDiv = document.createElement('div');
+        setIcon(tempDiv, iconName);
+        const svg = tempDiv.querySelector('svg');
+        if (svg) {
+            const clonedSvg = svg.cloneNode(true);
+            if (clonedSvg instanceof SVGElement) {
+                clonedSvg.setAttribute('stroke-width', String(strokeWidth));
                 if (fill) {
-                    svgContent = svgContent.replace(/fill="[^"]*"/g, 'fill="white"');
+                    clonedSvg.querySelectorAll('path, circle, rect, polygon, ellipse, line, polyline').forEach((el) => {
+                        el.setAttribute('fill', 'white');
+                    });
                 }
+                const serializer = new XMLSerializer();
+                const svgContent = serializer.serializeToString(clonedSvg);
                 iconSVGCache.set(cacheKey, svgContent);
                 return svgContent;
             }
-        } catch (e) {
-            // Icon not available
         }
+    } catch (e) {
+        // Icon not available
+    }
 
-        iconSVGCache.set(cacheKey, null);
-        return null;
+    iconSVGCache.set(cacheKey, null);
+    return null;
+}
+
+function handlePointClick(info: PickingInfo<DeckDataPoint>, event: MjolnirEvent, options: MapRendererOptions['options'], app: App) {
+    if (!info.object) return;
+
+    if (options.onMarkerClick) {
+        options.onMarkerClick(info.object.point, event);
+        return;
+    }
+
+    if (info.object.point.file) {
+        const srcEvent = event?.srcEvent;
+        const newTab =
+            (srcEvent && 'button' in srcEvent && srcEvent.button === 1) ||
+            srcEvent?.ctrlKey ||
+            srcEvent?.metaKey;
+        app.workspace.getLeaf(newTab).openFile(info.object.point.file);
+    }
+}
+
+function calculateBounds(points: MapPoint[], containerEl: HTMLElement): { latitude: number; longitude: number; zoom: number } {
+    let minLat = Infinity, maxLat = -Infinity;
+    let minLng = Infinity, maxLng = -Infinity;
+
+    for (const p of points) {
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lng < minLng) minLng = p.lng;
+        if (p.lng > maxLng) maxLng = p.lng;
+    }
+
+    const centerLat = (maxLat + minLat) / 2;
+    const centerLng = (maxLng + minLng) / 2;
+
+    // Add padding (20% on each side)
+    const padding = 1.4; // 1 + 0.2*2 for both sides
+    const latRange = (maxLat - minLat) * padding;
+    const lngRange = (maxLng - minLng) * padding;
+
+    // Handle single point or very clustered points
+    const minRange = 0.01; // Roughly ~1km
+    const adjustedLatRange = Math.max(latRange, minRange);
+    const adjustedLngRange = Math.max(lngRange, minRange);
+
+    // Get container dimensions
+    const width = containerEl.clientWidth || 800;
+    const height = containerEl.clientHeight || 600;
+
+    // Calculate zoom level to fit bounds
+    // At zoom level z, the world is 256 * 2^z pixels wide
+    const WORLD_SIZE = 256;
+    const latZoom = Math.log2(height / (adjustedLatRange * WORLD_SIZE / 180));
+    const lngZoom = Math.log2(width / (adjustedLngRange * WORLD_SIZE / 360));
+
+    // Use the smaller zoom to ensure everything fits, and clamp
+    const zoom = Math.max(1, Math.min(18, Math.min(latZoom, lngZoom) - 0.5));
+
+    return {
+        latitude: centerLat,
+        longitude: centerLng,
+        zoom: zoom,
     };
+}
 
-    const deckData: DeckDataPoint[] = points.map(point => ({
-        position: [point.lng, point.lat] as [number, number],
-        color: hexToRgb(getPointColor(point)),
-        radius: point.size || markerSize,
-        point: point,
-    }));
-
-    const currentLayers = deck.props.layers;
-    if (!currentLayers || currentLayers.length === 0) return;
-
-    const tileLayer = currentLayers[0];
-
-    const markerLayer = markerType === 'pins'
-        ? new IconLayer({
+function createMarkerLayer(
+    data: DeckDataPoint[],
+    markerType: 'pins' | 'dots',
+    settings: MapPlugin['settings'],
+    tagSettings: MapTagSettings | undefined,
+    options: MapRendererOptions['options'],
+    app: App
+) {
+    if (markerType === 'pins') {
+        return new IconLayer({
             id: 'icon-layer',
-            data: deckData,
+            data: data,
             pickable: true,
             getIcon: (d: DeckDataPoint) => {
                 const [r, g, b] = d.color;
-                const icon = getPointIcon(d.point);
+                const icon = getPointIcon(d.point, tagSettings);
 
                 let innerContent = `<circle cx="12" cy="12" r="4" fill="white"/>`;
 
@@ -223,10 +265,11 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
             sizeMinPixels: 8,
             sizeMaxPixels: 60,
             onClick: (info: PickingInfo<DeckDataPoint>, event: MjolnirEvent) => handlePointClick(info, event, options, app),
-        })
-        : new ScatterplotLayer({
+        });
+    } else {
+        return new ScatterplotLayer({
             id: 'scatterplot-layer',
-            data: deckData,
+            data: data,
             pickable: true,
             opacity: 0.8,
             stroked: false,
@@ -239,8 +282,73 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
             getFillColor: (d: DeckDataPoint) => d.color,
             onClick: (info: PickingInfo<DeckDataPoint>, event: MjolnirEvent) => handlePointClick(info, event, options, app),
         });
+    }
+}
 
+export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], config: Pick<MapRendererOptions, 'containerEl' | 'settings' | 'tagSettings' | 'options' | 'app'>): void {
+    const { containerEl, settings, tagSettings, options, app } = config;
+
+    const markerType = options.markerType || 'pins';
+    const markerSize = options.markerSize || 100;
+    const defaultColor = options.markerColor || 'var(--color-accent)';
+    const autoCenter = options.autoCenter !== false; // Default to true
+
+    const deckData: DeckDataPoint[] = points.map(point => ({
+        position: [point.lng, point.lat] as [number, number],
+        color: parseColor(getPointColor(point, tagSettings, defaultColor)),
+        radius: point.size || markerSize,
+        point: point,
+    }));
+
+    const currentLayers = deck.props.layers;
+    if (!currentLayers || currentLayers.length === 0) return;
+
+    const tileLayer = currentLayers[0];
+
+    const markerLayer = createMarkerLayer(deckData, markerType, settings, tagSettings, options, app);
+
+    // Update layers
     deck.setProps({ layers: [tileLayer, markerLayer] });
+
+    // Determine what view state to use
+    let shouldTransition = false;
+    let targetViewState = null;
+
+    // Check if center/zoom are explicitly configured
+    const hasConfiguredCenter = options.center && (options.center[0] !== 0 || options.center[1] !== 0);
+
+    if (hasConfiguredCenter && options.zoom) {
+        if (!options.center) return;
+
+        shouldTransition = true;
+        targetViewState = {
+            latitude: options.center[0],
+            longitude: options.center[1],
+            zoom: options.zoom,
+            pitch: 0,
+            bearing: 0,
+        };
+    } else if (autoCenter && points.length > 0) {
+        shouldTransition = true;
+        targetViewState = {
+            ...calculateBounds(points, containerEl),
+            pitch: 0,
+            bearing: 0,
+        };
+    }
+
+    if (shouldTransition && targetViewState) {
+        deck.setProps({
+            initialViewState: {
+                MapView: {
+                    ...targetViewState,
+                    transitionDuration: 800,
+                    transitionInterpolator: new FlyToInterpolator(),
+                    transitionEasing: easeCubic,
+                }
+            }
+        });
+    }
 }
 
 export async function createMapRenderer(config: MapRendererOptions): Promise<Deck<MapViewType[]>> {
@@ -256,63 +364,8 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
     containerEl.style.setProperty('--bases-map-height', options.height || '100%');
 
     const mapCanvas = containerEl.createEl('canvas', { cls: 'map-canvas' });
-    
+
     const tooltip = containerEl.createEl('div', { cls: 'map-tooltip' });
-
-    const hexToRgb = (hex: string): [number, number, number] => {
-        // Handle CSS variables like var(--color-accent)
-        if (hex.startsWith('var(')) {
-            const tempEl = document.body.createDiv();
-            tempEl.style.color = hex;
-            document.body.appendChild(tempEl);
-            const computedColor = getComputedStyle(tempEl).color;
-            document.body.removeChild(tempEl);
-
-            const rgbMatch = computedColor.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
-            if (rgbMatch) {
-                return [parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3])];
-            }
-        }
-
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result
-            ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
-            : [0, 0, 0];
-    };
-
-    const getPointColor = (point: MapPoint): string => {
-        if (point.color) {
-            return point.color;
-        }
-
-        if (tagSettings && point.tags && point.tags.length > 0) {
-            for (const priorityTag of tagSettings.tagPriority) {
-                if (point.tags.includes(priorityTag)) {
-                    const customization = tagSettings.tagCustomizations[priorityTag];
-                    if (customization) {
-                        return customization.color;
-                    }
-                }
-            }
-        }
-
-        // default
-        return markerColor;
-    };
-
-    const getPointIcon = (point: MapPoint): string | null => {
-        if (tagSettings && point.tags && point.tags.length > 0) {
-            for (const priorityTag of tagSettings.tagPriority) {
-                if (point.tags.includes(priorityTag)) {
-                    const customization = tagSettings.tagCustomizations[priorityTag];
-                    if (customization && customization.icon) {
-                        return customization.icon;
-                    }
-                }
-            }
-        }
-        return null;
-    };
 
     const numPoints = points.length;
     const deckData: DeckDataPoint[] = new Array(numPoints);
@@ -321,7 +374,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
         const point = points[i];
         deckData[i] = {
             position: [point.lng, point.lat] as [number, number],
-            color: hexToRgb(getPointColor(point)),
+            color: parseColor(getPointColor(point, tagSettings, markerColor)),
             radius: point.size || markerSize,
             point: point,
         };
@@ -329,36 +382,28 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
 
     // calculate bounds
     let initialViewState: MapViewState;
-    if (options.center && options.center[0] !== 0 && options.center[1] !== 0) {
+    const hasConfiguredCenter = options.center && (options.center[0] !== 0 || options.center[1] !== 0);
+
+    if (hasConfiguredCenter && options.zoom) {
         initialViewState = {
-            longitude: options.center[1],
-            latitude: options.center[0],
-            zoom: options.zoom || 4,
+            longitude: options.center![1],
+            latitude: options.center![0],
+            zoom: options.zoom,
+            pitch: 0,
+            bearing: 0,
+        };
+    } else if (points.length > 0) {
+        const bounds = calculateBounds(points, containerEl);
+        initialViewState = {
+            ...bounds,
             pitch: 0,
             bearing: 0,
         };
     } else {
-        // fit
-        let minLat = Infinity, maxLat = -Infinity;
-        let minLng = Infinity, maxLng = -Infinity;
-
-        for (let i = 0; i < numPoints; i++) {
-            const p = points[i];
-            if (p.lat < minLat) minLat = p.lat;
-            if (p.lat > maxLat) maxLat = p.lat;
-            if (p.lng < minLng) minLng = p.lng;
-            if (p.lng > maxLng) maxLng = p.lng;
-        }
-
-        const centerLat = (maxLat + minLat) / 2;
-        const centerLng = (maxLng + minLng) / 2;
-        const maxDiff = Math.max(maxLat - minLat, maxLng - minLng);
-        const autoZoom = Math.max(1, Math.min(15, Math.floor(Math.log2(360 / maxDiff)) - 1));
-
         initialViewState = {
-            longitude: centerLng,
-            latitude: centerLat,
-            zoom: autoZoom,
+            longitude: 0,
+            latitude: 0,
+            zoom: 2,
             pitch: 0,
             bearing: 0,
         };
@@ -367,6 +412,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
     let currentCursor = 'grab';
     let currentPoint: MapPoint | null = null;
     let tooltipUpdateId = 0;
+    let tilesLoadedCalled = false;
 
     const updateTooltip = async (point: MapPoint, x: number, y: number) => {
         const thisUpdateId = ++tooltipUpdateId;
@@ -375,8 +421,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
 
         // show cover image
         if (point.cover && point.file) {
-            const filePath = typeof point.file === 'string' ? point.file : point.file.path;
-            const coverFile = app.metadataCache.getFirstLinkpathDest(point.cover, filePath);
+            const coverFile = app.metadataCache.getFirstLinkpathDest(point.cover, point.file.path);
             if (coverFile) {
                 const img = new Image();
                 img.classList.add('map-tooltip-cover-image');
@@ -451,95 +496,6 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
         }
     };
 
-    const iconSVGCache = new Map<string, string | null>();
-
-    const getIconSVG = (iconName: string, strokeWidth: number, fill: boolean): string | null => {
-        const cacheKey = `${iconName}-${strokeWidth}-${fill}`;
-
-        if (iconSVGCache.has(cacheKey)) {
-            return iconSVGCache.get(cacheKey)!;
-        }
-
-        try {
-            const tempDiv = document.createElement('div');
-            setIcon(tempDiv, iconName);
-            const svg = tempDiv.querySelector('svg');
-            if (svg) {
-                let svgContent = svg.outerHTML;
-                svgContent = svgContent.replace(/stroke-width="[^"]*"/g, `stroke-width="${strokeWidth}"`);
-                if (fill) {
-                    svgContent = svgContent.replace(/fill="[^"]*"/g, 'fill="white"');
-                }
-                iconSVGCache.set(cacheKey, svgContent);
-                return svgContent;
-            }
-        } catch (e) {
-            console.warn('Failed to get icon SVG:', iconName, e);
-        }
-
-        iconSVGCache.set(cacheKey, null);
-        return null;
-    };
-
-    const createMarkerLayer = (data: DeckDataPoint[]) => {
-        if (markerType === 'pins') {
-            return new IconLayer({
-                id: 'icon-layer',
-                data: data,
-                pickable: true,
-                getIcon: (d: DeckDataPoint) => {
-                    const [r, g, b] = d.color;
-                    const icon = getPointIcon(d.point);
-
-                    let innerContent = `<circle cx="12" cy="12" r="4" fill="white"/>`;
-
-                    if (icon) {
-                        const iconSVG = getIconSVG(icon, settings.strokeWidth, settings.iconFill);
-                        if (iconSVG) {
-                            innerContent = `<g transform="translate(3.5, 3.5) scale(0.7)" style="color: white;">${iconSVG}</g>`;
-                        }
-                    }
-
-                    return {
-                        url:
-                            'data:image/svg+xml;charset=utf-8,' +
-                            encodeURIComponent(
-                                `<svg xmlns="http://www.w3.org/2000/svg" width="24" height="36" viewBox="0 0 24 36">
-                                    <path d="M12 0C5.4 0 0 5.4 0 12c0 9 12 24 12 24s12-15 12-24c0-6.6-5.4-12-12-12z" fill="rgb(${r},${g},${b})"/>
-                                    ${innerContent}
-                                </svg>`
-                            ),
-                        width: 24,
-                        height: 36,
-                        anchorY: 36,
-                    };
-                },
-                getPosition: (d: DeckDataPoint) => d.position,
-                getSize: (d: DeckDataPoint) => d.radius * 0.3,
-                sizeScale: 1,
-                sizeMinPixels: 8,
-                sizeMaxPixels: 60,
-                onClick: (info: PickingInfo<DeckDataPoint>, event: MjolnirEvent) => handlePointClick(info, event, options, app),
-            });
-        } else {
-            return new ScatterplotLayer({
-                id: 'scatterplot-layer',
-                data: data,
-                pickable: true,
-                opacity: 0.8,
-                stroked: false,
-                filled: true,
-                radiusScale: 1,
-                radiusMinPixels: 3,
-                radiusMaxPixels: 100,
-                getPosition: (d: DeckDataPoint) => d.position,
-                getRadius: (d: DeckDataPoint) => d.radius,
-                getFillColor: (d: DeckDataPoint) => d.color,
-                onClick: (info: PickingInfo<DeckDataPoint>, event: MjolnirEvent) => handlePointClick(info, event, options, app),
-            });
-        }
-    };
-
     const deck = new Deck({
         canvas: mapCanvas,
         initialViewState: { MapView: initialViewState },
@@ -551,10 +507,11 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
         },
         views: [new MapViewType({ repeat: true })],
         onAfterRender: () => {
-            if (options.onTilesLoaded) {
+            if (options.onTilesLoaded && !tilesLoadedCalled) {
+                tilesLoadedCalled = true;
                 setTimeout(() => {
                     options.onTilesLoaded?.();
-                }, 100);
+                }, 200);
             }
         },
         getCursor: () => currentCursor,
@@ -618,7 +575,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
                     });
                 },
             }),
-            createMarkerLayer(deckData),
+            createMarkerLayer(deckData, markerType, settings, tagSettings, options, app),
         ],
     });
 

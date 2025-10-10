@@ -8,6 +8,7 @@ interface MapPluginSettings {
     lngKey: string;
     strokeWidth: number;
     iconFill: boolean;
+    autoCenter: boolean;
     tagSettings: MapTagSettings;
 }
 
@@ -16,6 +17,7 @@ const DEFAULT_SETTINGS: MapPluginSettings = {
     lngKey: '',
     strokeWidth: 2.5,
     iconFill: false,
+    autoCenter: true,
     tagSettings: DEFAULT_MAP_TAG_SETTINGS
 };
 
