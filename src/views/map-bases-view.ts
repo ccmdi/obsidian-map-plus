@@ -116,7 +116,11 @@ export class MapBasesView extends BasesView {
             const parts = centerVal.split(',').map(p => parseFloat(p.trim()));
             if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
                 this.center = [parts[0], parts[1]];
+            } else {
+                this.center = [0, 0]; // Reset if invalid
             }
+        } else {
+            this.center = [0, 0]; // Reset if not configured
         }
 
         const markerTypeVal = this.config.get('markerType');
@@ -252,6 +256,9 @@ export class MapBasesView extends BasesView {
 
         const points = this.extractPointsFromData();
 
+        // If center coordinates are configured, use them instead of auto-centering
+        const hasConfiguredCenter = this.center[0] !== 0 || this.center[1] !== 0;
+
         updateMapPoints(this.deck, points, {
             containerEl: this.mapEl,
             app: this.app,
@@ -259,7 +266,9 @@ export class MapBasesView extends BasesView {
             tagSettings: this.plugin.tagSettings,
             options: {
                 markerType: this.markerType,
-                autoCenter: this.plugin.settings.autoCenter
+                center: hasConfiguredCenter ? this.center : undefined,
+                zoom: hasConfiguredCenter ? this.defaultZoom : undefined,
+                autoCenter: this.plugin.settings.autoCenter && !hasConfiguredCenter
             }
         });
     }

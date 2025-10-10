@@ -310,18 +310,38 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
     // Update layers
     deck.setProps({ layers: [tileLayer, markerLayer] });
 
-    // Only auto-center if enabled and we have points
-    if (autoCenter && points.length > 0) {
-        // Calculate new bounds and smoothly transition to them
-        const newViewState = calculateBounds(points, containerEl);
+    // Determine what view state to use
+    let shouldTransition = false;
+    let targetViewState = null;
 
-        // Smoothly transition view to new bounds with easing
+    // Check if center/zoom are explicitly configured
+    const hasConfiguredCenter = options.center && (options.center[0] !== 0 || options.center[1] !== 0);
+
+    if (hasConfiguredCenter && options.zoom) {
+        if (!options.center) return;
+
+        shouldTransition = true;
+        targetViewState = {
+            latitude: options.center[0],
+            longitude: options.center[1],
+            zoom: options.zoom,
+            pitch: 0,
+            bearing: 0,
+        };
+    } else if (autoCenter && points.length > 0) {
+        shouldTransition = true;
+        targetViewState = {
+            ...calculateBounds(points, containerEl),
+            pitch: 0,
+            bearing: 0,
+        };
+    }
+
+    if (shouldTransition && targetViewState) {
         deck.setProps({
             initialViewState: {
                 MapView: {
-                    ...newViewState,
-                    pitch: 0,
-                    bearing: 0,
+                    ...targetViewState,
                     transitionDuration: 800,
                     transitionInterpolator: new FlyToInterpolator(),
                     transitionEasing: easeCubic,
