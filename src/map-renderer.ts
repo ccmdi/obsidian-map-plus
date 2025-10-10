@@ -63,6 +63,98 @@ export interface MapRendererOptions {
     };
 }
 
+
+function hexToRgb(hex: string): [number, number, number] {
+    // Handle CSS variables like var(--color-accent)
+    if (hex.startsWith('var(')) {
+        const tempEl = document.body.createDiv();
+        tempEl.style.color = hex;
+        document.body.appendChild(tempEl);
+        const computedColor = getComputedStyle(tempEl).color;
+        document.body.removeChild(tempEl);
+
+        const rgbMatch = computedColor.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
+        if (rgbMatch) {
+            return [parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3])];
+        }
+    }
+
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result
+        ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
+        : [118, 109, 243];
+}
+
+function getPointColor(point: MapPoint, tagSettings: MapTagSettings | undefined, defaultColor: string): string {
+    if (point.color) {
+        return point.color;
+    }
+
+    if (tagSettings && point.tags && point.tags.length > 0) {
+        for (const priorityTag of tagSettings.tagPriority) {
+            if (point.tags.includes(priorityTag)) {
+                const customization = tagSettings.tagCustomizations[priorityTag];
+                if (customization) {
+                    return customization.color;
+                }
+            }
+        }
+    }
+
+    return defaultColor;
+}
+
+function getPointIcon(point: MapPoint, tagSettings: MapTagSettings | undefined): string | null {
+    if (tagSettings && point.tags && point.tags.length > 0) {
+        for (const priorityTag of tagSettings.tagPriority) {
+            if (point.tags.includes(priorityTag)) {
+                const customization = tagSettings.tagCustomizations[priorityTag];
+                if (customization && customization.icon) {
+                    return customization.icon;
+                }
+            }
+        }
+    }
+    return null;
+}
+
+const iconSVGCache = new Map<string, string | null>();
+
+function getIconSVG(iconName: string, strokeWidth: number, fill: boolean): string | null {
+    const cacheKey = `${iconName}-${strokeWidth}-${fill}`;
+
+    if (iconSVGCache.has(cacheKey)) {
+        return iconSVGCache.get(cacheKey)!;
+    }
+
+    try {
+        const tempDiv = document.createElement('div');
+        setIcon(tempDiv, iconName);
+        const svg = tempDiv.querySelector('svg');
+        if (svg) {
+            const clonedSvg = svg.cloneNode(true);
+            if (clonedSvg instanceof SVGElement) {
+                clonedSvg.setAttribute('stroke-width', String(strokeWidth));
+                if (fill) {
+                    const fillableElements = clonedSvg.querySelectorAll('[fill]');
+                    fillableElements.forEach((el) => {
+                        el.setAttribute('fill', 'white');
+                    });
+                }
+                const serializer = new XMLSerializer();
+                const svgContent = serializer.serializeToString(clonedSvg);
+                iconSVGCache.set(cacheKey, svgContent);
+                return svgContent;
+            }
+        }
+    } catch (e) {
+        // Icon not available
+    }
+
+    iconSVGCache.set(cacheKey, null);
+    return null;
+}
+
 function handlePointClick(info: PickingInfo<DeckDataPoint>, event: MjolnirEvent, options: MapRendererOptions['options'], app: App) {
     if (info.object) {
         if (options.onMarkerClick) {
@@ -88,101 +180,11 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
 
     const markerType = options.markerType || 'pins';
     const markerSize = options.markerSize || 100;
-
-    const hexToRgb = (hex: string): [number, number, number] => {
-        // Handle CSS variables like var(--color-accent)
-        if (hex.startsWith('var(')) {
-            const tempEl = document.body.createDiv();
-            tempEl.style.color = hex;
-            document.body.appendChild(tempEl);
-            const computedColor = getComputedStyle(tempEl).color;
-            document.body.removeChild(tempEl);
-
-            const rgbMatch = computedColor.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
-            if (rgbMatch) {
-                return [parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3])];
-            }
-        }
-
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result
-            ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
-            : [118, 109, 243];
-    };
-
-    const getPointColor = (point: MapPoint): string => {
-        if (point.color) {
-            return point.color;
-        }
-
-        if (tagSettings && point.tags && point.tags.length > 0) {
-            for (const priorityTag of tagSettings.tagPriority) {
-                if (point.tags.includes(priorityTag)) {
-                    const customization = tagSettings.tagCustomizations[priorityTag];
-                    if (customization) {
-                        return customization.color;
-                    }
-                }
-            }
-        }
-
-        return options.markerColor || 'var(--color-accent)';
-    };
-
-    const getPointIcon = (point: MapPoint): string | null => {
-        if (tagSettings && point.tags && point.tags.length > 0) {
-            for (const priorityTag of tagSettings.tagPriority) {
-                if (point.tags.includes(priorityTag)) {
-                    const customization = tagSettings.tagCustomizations[priorityTag];
-                    if (customization && customization.icon) {
-                        return customization.icon;
-                    }
-                }
-            }
-        }
-        return null;
-    };
-
-    const iconSVGCache = new Map<string, string | null>();
-
-    const getIconSVG = (iconName: string, strokeWidth: number, fill: boolean): string | null => {
-        const cacheKey = `${iconName}-${strokeWidth}-${fill}`;
-
-        if (iconSVGCache.has(cacheKey)) {
-            return iconSVGCache.get(cacheKey)!;
-        }
-
-        try {
-            const tempDiv = document.createElement('div');
-            setIcon(tempDiv, iconName);
-            const svg = tempDiv.querySelector('svg');
-            if (svg) {
-                const clonedSvg = svg.cloneNode(true);
-                if (clonedSvg instanceof SVGElement) {
-                    clonedSvg.setAttribute('stroke-width', String(strokeWidth));
-                    if (fill) {
-                        const fillableElements = clonedSvg.querySelectorAll('[fill]');
-                        fillableElements.forEach((el) => {
-                            el.setAttribute('fill', 'white');
-                        });
-                    }
-                    const serializer = new XMLSerializer();
-                    const svgContent = serializer.serializeToString(clonedSvg);
-                    iconSVGCache.set(cacheKey, svgContent);
-                    return svgContent;
-                }
-            }
-        } catch (e) {
-            // Icon not available
-        }
-
-        iconSVGCache.set(cacheKey, null);
-        return null;
-    };
+    const defaultColor = options.markerColor || 'var(--color-accent)';
 
     const deckData: DeckDataPoint[] = points.map(point => ({
         position: [point.lng, point.lat] as [number, number],
-        color: hexToRgb(getPointColor(point)),
+        color: hexToRgb(getPointColor(point, tagSettings, defaultColor)),
         radius: point.size || markerSize,
         point: point,
     }));
@@ -199,7 +201,7 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
             pickable: true,
             getIcon: (d: DeckDataPoint) => {
                 const [r, g, b] = d.color;
-                const icon = getPointIcon(d.point);
+                const icon = getPointIcon(d.point, tagSettings);
 
                 let innerContent = `<circle cx="12" cy="12" r="4" fill="white"/>`;
 
@@ -263,63 +265,8 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
     containerEl.style.setProperty('--bases-map-height', options.height || '100%');
 
     const mapCanvas = containerEl.createEl('canvas', { cls: 'map-canvas' });
-    
+
     const tooltip = containerEl.createEl('div', { cls: 'map-tooltip' });
-
-    const hexToRgb = (hex: string): [number, number, number] => {
-        // Handle CSS variables like var(--color-accent)
-        if (hex.startsWith('var(')) {
-            const tempEl = document.body.createDiv();
-            tempEl.style.color = hex;
-            document.body.appendChild(tempEl);
-            const computedColor = getComputedStyle(tempEl).color;
-            document.body.removeChild(tempEl);
-
-            const rgbMatch = computedColor.match(/^rgb\((\d+),\s*(\d+),\s*(\d+)\)$/);
-            if (rgbMatch) {
-                return [parseInt(rgbMatch[1]), parseInt(rgbMatch[2]), parseInt(rgbMatch[3])];
-            }
-        }
-
-        const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
-        return result
-            ? [parseInt(result[1], 16), parseInt(result[2], 16), parseInt(result[3], 16)]
-            : [0, 0, 0];
-    };
-
-    const getPointColor = (point: MapPoint): string => {
-        if (point.color) {
-            return point.color;
-        }
-
-        if (tagSettings && point.tags && point.tags.length > 0) {
-            for (const priorityTag of tagSettings.tagPriority) {
-                if (point.tags.includes(priorityTag)) {
-                    const customization = tagSettings.tagCustomizations[priorityTag];
-                    if (customization) {
-                        return customization.color;
-                    }
-                }
-            }
-        }
-
-        // default
-        return markerColor;
-    };
-
-    const getPointIcon = (point: MapPoint): string | null => {
-        if (tagSettings && point.tags && point.tags.length > 0) {
-            for (const priorityTag of tagSettings.tagPriority) {
-                if (point.tags.includes(priorityTag)) {
-                    const customization = tagSettings.tagCustomizations[priorityTag];
-                    if (customization && customization.icon) {
-                        return customization.icon;
-                    }
-                }
-            }
-        }
-        return null;
-    };
 
     const numPoints = points.length;
     const deckData: DeckDataPoint[] = new Array(numPoints);
@@ -328,7 +275,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
         const point = points[i];
         deckData[i] = {
             position: [point.lng, point.lat] as [number, number],
-            color: hexToRgb(getPointColor(point)),
+            color: hexToRgb(getPointColor(point, tagSettings, markerColor)),
             radius: point.size || markerSize,
             point: point,
         };
@@ -458,43 +405,6 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
         }
     };
 
-    const iconSVGCache = new Map<string, string | null>();
-
-    const getIconSVG = (iconName: string, strokeWidth: number, fill: boolean): string | null => {
-        const cacheKey = `${iconName}-${strokeWidth}-${fill}`;
-
-        if (iconSVGCache.has(cacheKey)) {
-            return iconSVGCache.get(cacheKey)!;
-        }
-
-        try {
-            const tempDiv = document.createElement('div');
-            setIcon(tempDiv, iconName);
-            const svg = tempDiv.querySelector('svg');
-            if (svg) {
-                const clonedSvg = svg.cloneNode(true);
-                if (clonedSvg instanceof SVGElement) {
-                    clonedSvg.setAttribute('stroke-width', String(strokeWidth));
-                    if (fill) {
-                        const fillableElements = clonedSvg.querySelectorAll('[fill]');
-                        fillableElements.forEach((el) => {
-                            el.setAttribute('fill', 'white');
-                        });
-                    }
-                    const serializer = new XMLSerializer();
-                    const svgContent = serializer.serializeToString(clonedSvg);
-                    iconSVGCache.set(cacheKey, svgContent);
-                    return svgContent;
-                }
-            }
-        } catch (e) {
-            console.warn('Failed to get icon SVG:', iconName, e);
-        }
-
-        iconSVGCache.set(cacheKey, null);
-        return null;
-    };
-
     const createMarkerLayer = (data: DeckDataPoint[]) => {
         if (markerType === 'pins') {
             return new IconLayer({
@@ -503,7 +413,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
                 pickable: true,
                 getIcon: (d: DeckDataPoint) => {
                     const [r, g, b] = d.color;
-                    const icon = getPointIcon(d.point);
+                    const icon = getPointIcon(d.point, tagSettings);
 
                     let innerContent = `<circle cx="12" cy="12" r="4" fill="white"/>`;
 
