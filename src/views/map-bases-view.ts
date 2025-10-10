@@ -253,6 +253,7 @@ export class MapBasesView extends BasesView {
         const points = this.extractPointsFromData();
 
         updateMapPoints(this.deck, points, {
+            containerEl: this.mapEl,
             app: this.app,
             settings: this.plugin.settings,
             tagSettings: this.plugin.tagSettings,

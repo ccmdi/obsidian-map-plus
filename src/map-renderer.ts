@@ -170,6 +170,51 @@ function handlePointClick(info: PickingInfo<DeckDataPoint>, event: MjolnirEvent,
     }
 }
 
+function calculateBounds(points: MapPoint[], containerEl: HTMLElement): { latitude: number; longitude: number; zoom: number } {
+    let minLat = Infinity, maxLat = -Infinity;
+    let minLng = Infinity, maxLng = -Infinity;
+
+    for (const p of points) {
+        if (p.lat < minLat) minLat = p.lat;
+        if (p.lat > maxLat) maxLat = p.lat;
+        if (p.lng < minLng) minLng = p.lng;
+        if (p.lng > maxLng) maxLng = p.lng;
+    }
+
+    const centerLat = (maxLat + minLat) / 2;
+    const centerLng = (maxLng + minLng) / 2;
+
+    // Calculate range with minimum thresholds to handle clustered points
+    let latRange = Math.max(maxLat - minLat, 0.01);
+    let lngRange = Math.max(maxLng - minLng, 0.01);
+
+    // Add 20% padding to the bounds
+    const paddingFactor = 0.2;
+    latRange = latRange * (1 + paddingFactor * 2);
+    lngRange = lngRange * (1 + paddingFactor * 2);
+
+    // Get container dimensions
+    const containerWidth = containerEl.clientWidth || 800;
+    const containerHeight = containerEl.clientHeight || 600;
+
+    // Web Mercator zoom calculation
+    const lngZoom = Math.log2((containerWidth / 256) * (360 / lngRange));
+
+    // For latitude, account for Mercator projection distortion
+    const latRadians = centerLat * Math.PI / 180;
+    const latitudeFactor = Math.cos(latRadians);
+    const latZoom = Math.log2((containerHeight / 256) * (180 / latRange) * latitudeFactor);
+
+    // Use the smaller zoom (more zoomed out) to ensure everything fits
+    const autoZoom = Math.max(1, Math.min(18, Math.floor(Math.min(lngZoom, latZoom)) - 0.5));
+
+    return {
+        latitude: centerLat,
+        longitude: centerLng,
+        zoom: autoZoom,
+    };
+}
+
 function createMarkerLayer(
     data: DeckDataPoint[],
     markerType: 'pins' | 'dots',
@@ -236,8 +281,8 @@ function createMarkerLayer(
     }
 }
 
-export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], config: Pick<MapRendererOptions, 'settings' | 'tagSettings' | 'options' | 'app'>): void {
-    const { settings, tagSettings, options, app } = config;
+export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], config: Pick<MapRendererOptions, 'containerEl' | 'settings' | 'tagSettings' | 'options' | 'app'>): void {
+    const { containerEl, settings, tagSettings, options, app } = config;
 
     const markerType = options.markerType || 'pins';
     const markerSize = options.markerSize || 100;
@@ -257,7 +302,23 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
 
     const markerLayer = createMarkerLayer(deckData, markerType, settings, tagSettings, options, app);
 
+    // Calculate new bounds and smoothly transition to them
+    const newViewState = calculateBounds(points, containerEl);
+
+    // Update layers
     deck.setProps({ layers: [tileLayer, markerLayer] });
+
+    // Smoothly transition view to new bounds
+    deck.setProps({
+        initialViewState: {
+            MapView: {
+                ...newViewState,
+                pitch: 0,
+                bearing: 0,
+                transitionDuration: 1000,
+            }
+        }
+    });
 }
 
 export async function createMapRenderer(config: MapRendererOptions): Promise<Deck<MapViewType[]>> {
@@ -300,27 +361,9 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
             bearing: 0,
         };
     } else {
-        // fit
-        let minLat = Infinity, maxLat = -Infinity;
-        let minLng = Infinity, maxLng = -Infinity;
-
-        for (let i = 0; i < numPoints; i++) {
-            const p = points[i];
-            if (p.lat < minLat) minLat = p.lat;
-            if (p.lat > maxLat) maxLat = p.lat;
-            if (p.lng < minLng) minLng = p.lng;
-            if (p.lng > maxLng) maxLng = p.lng;
-        }
-
-        const centerLat = (maxLat + minLat) / 2;
-        const centerLng = (maxLng + minLng) / 2;
-        const maxDiff = Math.max(maxLat - minLat, maxLng - minLng);
-        const autoZoom = Math.max(1, Math.min(15, Math.floor(Math.log2(360 / maxDiff)) - 1));
-
+        const bounds = calculateBounds(points, containerEl);
         initialViewState = {
-            longitude: centerLng,
-            latitude: centerLat,
-            zoom: autoZoom,
+            ...bounds,
             pitch: 0,
             bearing: 0,
         };
