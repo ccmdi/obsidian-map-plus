@@ -1,25 +1,7 @@
 import { Plugin } from 'obsidian';
 import { MapBasesView } from './views/map-bases-view';
 import { MapTagSettings, DEFAULT_MAP_TAG_SETTINGS } from './settings/map-tag-settings';
-import { MapSettingTab } from './settings/map-settings';
-
-interface MapPluginSettings {
-    latKey: string;
-    lngKey: string;
-    strokeWidth: number;
-    iconFill: boolean;
-    autoCenter: boolean;
-    tagSettings: MapTagSettings;
-}
-
-const DEFAULT_SETTINGS: MapPluginSettings = {
-    latKey: '',
-    lngKey: '',
-    strokeWidth: 2.5,
-    iconFill: false,
-    autoCenter: true,
-    tagSettings: DEFAULT_MAP_TAG_SETTINGS
-};
+import { MapSettingTab, MapPluginSettings, DEFAULT_SETTINGS } from './settings/map-settings';
 
 export default class MapPlugin extends Plugin {
     settings: MapPluginSettings;

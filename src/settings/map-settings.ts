@@ -1,6 +1,26 @@
 import { PluginSettingTab, App, Setting } from "obsidian";
 import MapPlugin from "../main";
-import { renderTagCustomizations } from "./map-tag-settings";
+import { DEFAULT_MAP_TAG_SETTINGS, MapTagSettings, renderTagCustomizations } from "./map-tag-settings";
+
+export interface MapPluginSettings {
+    latKey: string;
+    lngKey: string;
+    strokeWidth: number;
+    iconFill: boolean;
+    autoCenter: boolean;
+    transitionDuration: number;
+    tagSettings: MapTagSettings;
+}
+
+export const DEFAULT_SETTINGS: MapPluginSettings = {
+    latKey: '',
+    lngKey: '',
+    strokeWidth: 2.5,
+    iconFill: false,
+    autoCenter: true,
+    transitionDuration: 1000,
+    tagSettings: DEFAULT_MAP_TAG_SETTINGS
+};
 
 export class MapSettingTab extends PluginSettingTab {
     plugin: MapPlugin;
@@ -68,6 +88,18 @@ export class MapSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.autoCenter)
                 .onChange(async (value) => {
                     this.plugin.settings.autoCenter = value;
+                    await this.plugin.saveSettings();
+                }));
+        
+        new Setting(containerEl)
+            .setName('Transition duration')
+            .setDesc('Duration of the transition when changing view state')
+            .addSlider(slider => slider
+                .setLimits(0, 2000, 100)
+                .setValue(this.plugin.settings.transitionDuration)
+                .setDynamicTooltip()
+                .onChange(async (value) => {
+                    this.plugin.settings.transitionDuration = value;
                     await this.plugin.saveSettings();
                 }));
 

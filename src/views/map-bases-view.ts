@@ -148,7 +148,7 @@ export class MapBasesView extends BasesView {
             this.containerEl.removeClass('is-loading');
             return;
         }
-
+            
         const loadingOverlay = this.containerEl.createDiv({ cls: 'map-loading-overlay' });
         const spinner = loadingOverlay.createDiv();
 
@@ -185,13 +185,6 @@ export class MapBasesView extends BasesView {
         animateTransform.setAttr('repeatCount', 'indefinite');
 
         const points = this.extractPointsFromData();
-
-        if (points.length === 0) {
-            this.mapEl.empty();
-            const emptyState = this.mapEl.createDiv({ cls: 'map-empty-state' });
-            emptyState.textContent = 'No entries with valid coordinates found';
-            return;
-        }
 
         const isEmbedded = this.isEmbedded();
         const height = isEmbedded ? `${this.mapHeight}px` : '100%';

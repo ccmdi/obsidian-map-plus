@@ -342,7 +342,7 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
             initialViewState: {
                 MapView: {
                     ...targetViewState,
-                    transitionDuration: 800,
+                    transitionDuration: settings.transitionDuration,
                     transitionInterpolator: new FlyToInterpolator(),
                     transitionEasing: easeCubic,
                 }
