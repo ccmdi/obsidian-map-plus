@@ -9,6 +9,7 @@ export interface MapPluginSettings {
     iconFill: boolean;
     autoCenter: boolean;
     transitionDuration: number;
+    enableThumbnailCache: boolean;
     tagSettings: MapTagSettings;
 }
 
@@ -19,6 +20,7 @@ export const DEFAULT_SETTINGS: MapPluginSettings = {
     iconFill: false,
     autoCenter: true,
     transitionDuration: 1000,
+    enableThumbnailCache: false,
     tagSettings: DEFAULT_MAP_TAG_SETTINGS
 };
 
@@ -102,6 +104,58 @@ export class MapSettingTab extends PluginSettingTab {
                     this.plugin.settings.transitionDuration = value;
                     await this.plugin.saveSettings();
                 }));
+
+        containerEl.createEl('h3', { text: 'Performance' });
+
+        const thumbnailToggle = new Setting(containerEl)
+            .setName('Enable thumbnail cache')
+            .setDesc('Cache small thumbnails of location cover images for faster hover performance')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableThumbnailCache)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableThumbnailCache = value;
+                    await this.plugin.saveSettings();
+                    this.display();
+                }));
+
+        if (this.plugin.settings.enableThumbnailCache) {
+            const stats = this.plugin.thumbnailCache.getCacheStats();
+            const sizeKB = (stats.totalSize / 1024).toFixed(1);
+
+            const cacheInfo = new Setting(containerEl)
+                .setName('Thumbnail cache status')
+                .setDesc(`${stats.count} thumbnails cached (${sizeKB} KB)`);
+
+            if (stats.pending > 0) {
+                cacheInfo.setDesc(`${stats.count} thumbnails cached (${sizeKB} KB), ${stats.pending} pending generation`);
+
+                cacheInfo.addButton(button => button
+                    .setButtonText('Generate thumbnails')
+                    .onClick(async () => {
+                        button.setDisabled(true);
+                        button.setButtonText('Generating...');
+
+                        await this.plugin.thumbnailCache.generatePendingThumbnails((current, total) => {
+                            button.setButtonText(`Generating ${current}/${total}...`);
+                        });
+
+                        button.setButtonText('Generate thumbnails');
+                        button.setDisabled(false);
+                        this.display();
+                    }));
+            }
+
+            new Setting(containerEl)
+                .setName('Clear thumbnail cache')
+                .setDesc('Delete all cached thumbnails to free up space')
+                .addButton(button => button
+                    .setButtonText('Clear cache')
+                    .setWarning()
+                    .onClick(async () => {
+                        await this.plugin.thumbnailCache.clearCache();
+                        this.display();
+                    }));
+        }
 
         renderTagCustomizations(containerEl, this.app, this.plugin);
     }

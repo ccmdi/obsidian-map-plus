@@ -228,6 +228,7 @@ export class MapBasesView extends BasesView {
             app: this.app,
             settings: settings,
             tagSettings: tagSettings,
+            thumbnailCache: this.plugin.thumbnailCache,
             options: {
                 center: centerToUse,
                 zoom: zoomToUse,
@@ -320,6 +321,10 @@ export class MapBasesView extends BasesView {
                 const coverVal = entry.getValue(this.coverProp);
                 if (coverVal) {
                     point.cover = coverVal.toString();
+
+                    if (this.plugin.settings.enableThumbnailCache) {
+                        this.plugin.thumbnailCache.markForGeneration(point.cover, entry.file);
+                    }
                 }
             }
 

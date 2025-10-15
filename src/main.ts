@@ -2,9 +2,11 @@ import { Plugin } from 'obsidian';
 import { MapBasesView } from './views/map-bases-view';
 import { MapTagSettings, DEFAULT_MAP_TAG_SETTINGS } from './settings/map-tag-settings';
 import { MapSettingTab, MapPluginSettings, DEFAULT_SETTINGS } from './settings/map-settings';
+import { ThumbnailCacheManager } from './thumbnail-cache';
 
 export default class MapPlugin extends Plugin {
     settings: MapPluginSettings;
+    thumbnailCache: ThumbnailCacheManager;
 
     get tagSettings(): MapTagSettings {
         return this.settings.tagSettings;
@@ -12,6 +14,19 @@ export default class MapPlugin extends Plugin {
 
     async onload() {
         await this.loadSettings();
+
+        this.thumbnailCache = new ThumbnailCacheManager(this, this.app);
+
+        if (this.settings.enableThumbnailCache) {
+            await this.thumbnailCache.loadCache();
+            const stats = this.thumbnailCache.getCacheStats();
+
+            if (stats.pending > 0) {
+                setTimeout(() => {
+                    this.thumbnailCache.generatePendingThumbnails();
+                }, 2000);
+            }
+        }
 
         this.registerBasesView('map', {
 			name: 'Map',

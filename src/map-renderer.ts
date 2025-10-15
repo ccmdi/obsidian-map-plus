@@ -8,6 +8,7 @@ import { MapView as MapViewType } from '@deck.gl/core';
 
 import { MapTagSettings } from './settings/map-tag-settings';
 import type MapPlugin from './main';
+import type { ThumbnailCacheManager } from './thumbnail-cache';
 
 function easeCubic(t: number): number {
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -52,6 +53,7 @@ export interface MapRendererOptions {
     app: App;
     settings: MapPlugin['settings'];
     tagSettings?: MapTagSettings;
+    thumbnailCache?: ThumbnailCacheManager;
     options: {
         center?: [number, number];
         zoom?: number;
@@ -418,15 +420,17 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
 
         // show cover image
         if (point.cover && point.file) {
-            const coverFile = app.metadataCache.getFirstLinkpathDest(point.cover, point.file.path);
-            if (coverFile) {
+            let thumbnailSrc: string | null = null;
+
+            if (config.thumbnailCache && settings.enableThumbnailCache) {
+                thumbnailSrc = await config.thumbnailCache.getThumbnail(point.cover, point.file);
+            }
+
+            if (thumbnailSrc) {
                 const img = new Image();
                 img.classList.add('map-tooltip-cover-image');
+                img.src = thumbnailSrc;
 
-                const src = app.vault.getResourcePath(coverFile);
-                img.src = src;
-
-                // Decode image off main thread, then append to DOM
                 const imagePromise = img.decode()
                     .then(() => {
                         if (thisUpdateId === tooltipUpdateId) {
@@ -440,6 +444,29 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
                     });
 
                 renderPromises.push(imagePromise);
+            } else {
+                const coverFile = app.metadataCache.getFirstLinkpathDest(point.cover, point.file.path);
+                if (coverFile) {
+                    const img = new Image();
+                    img.classList.add('map-tooltip-cover-image');
+
+                    const src = app.vault.getResourcePath(coverFile);
+                    img.src = src;
+
+                    const imagePromise = img.decode()
+                        .then(() => {
+                            if (thisUpdateId === tooltipUpdateId) {
+                                tooltip.insertBefore(img, tooltip.firstChild);
+                            }
+                        })
+                        .catch(() => {
+                            if (thisUpdateId === tooltipUpdateId) {
+                                tooltip.insertBefore(img, tooltip.firstChild);
+                            }
+                        });
+
+                    renderPromises.push(imagePromise);
+                }
             }
         }
 
