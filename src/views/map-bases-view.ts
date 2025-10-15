@@ -12,6 +12,7 @@ import { Deck } from '@deck.gl/core';
 import { MapView as MapViewType } from '@deck.gl/core';
 import { createMapRenderer, MapPoint, updateMapPoints } from '../map-renderer';
 import MapPlugin from '../main';
+import { arePointsEqual, haveLocationsChanged } from '../pointutils';
 
 export const MapBasesViewType = 'map';
 
@@ -241,7 +242,6 @@ export class MapBasesView extends BasesView {
             }
         });
 
-        // Store the initial points for future comparison
         this.lastPoints = points;
 
         this.containerEl.removeClass('is-loading');
@@ -264,76 +264,19 @@ export class MapBasesView extends BasesView {
         return false;
     }
 
-    private haveLocationsChanged(points1: MapPoint[], points2: MapPoint[]): boolean {
-        // Check if count changed
-        if (points1.length !== points2.length) return true;
-
-        // Check if any location (lat/lng) changed
-        for (let i = 0; i < points1.length; i++) {
-            if (points1[i].lat !== points2[i].lat || points1[i].lng !== points2[i].lng) {
-                return true;
-            }
-        }
-
-        return false;
-    }
-
-    private arePointsEqual(points1: MapPoint[], points2: MapPoint[]): boolean {
-        if (points1.length !== points2.length) return false;
-
-        for (let i = 0; i < points1.length; i++) {
-            const p1 = points1[i];
-            const p2 = points2[i];
-
-            // Compare essential properties that affect rendering
-            if (p1.lat !== p2.lat || 
-                p1.lng !== p2.lng || 
-                p1.title !== p2.title || 
-                p1.color !== p2.color || 
-                p1.size !== p2.size || 
-                p1.cover !== p2.cover ||
-                p1.file?.path !== p2.file?.path) {
-                return false;
-            }
-
-            // Compare tags
-            const tags1 = p1.tags || [];
-            const tags2 = p2.tags || [];
-            if (tags1.length !== tags2.length || !tags1.every((tag, idx) => tag === tags2[idx])) {
-                return false;
-            }
-
-            // Compare properties
-            const props1 = p1.properties || [];
-            const props2 = p2.properties || [];
-            if (props1.length !== props2.length) {
-                return false;
-            }
-            for (let j = 0; j < props1.length; j++) {
-                if (props1[j].name !== props2[j].name || props1[j].value !== props2[j].value) {
-                    return false;
-                }
-            }
-        }
-
-        return true;
-    }
+    
 
     private updatePointsOnly(): void {
         if (!this.deck || !this.data) return;
 
         const points = this.extractPointsFromData();
 
-        // Check if points have actually changed
-        if (this.arePointsEqual(points, this.lastPoints)) {
+        if (arePointsEqual(points, this.lastPoints)) {
             console.warn('onDataUpdated triggered but points are unchanged - skipping update');
             return;
         }
-
-        // Check if locations changed (for auto-centering decision)
-        const locationsChanged = this.haveLocationsChanged(points, this.lastPoints);
-
-        // Store the new points for future comparison
+        const locationsChanged = haveLocationsChanged(points, this.lastPoints);
+        
         this.lastPoints = points;
 
         const hasConfiguredCenter = this.center[0] !== 0 || this.center[1] !== 0;
@@ -347,7 +290,6 @@ export class MapBasesView extends BasesView {
                 markerType: this.markerType,
                 center: hasConfiguredCenter ? this.center : undefined,
                 zoom: hasConfiguredCenter ? this.defaultZoom : undefined,
-                // Only auto-center if locations actually changed (not just properties/metadata)
                 autoCenter: this.plugin.settings.autoCenter && !hasConfiguredCenter && locationsChanged
             }
         });
