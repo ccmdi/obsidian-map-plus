@@ -307,14 +307,11 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
 
     const markerLayer = createMarkerLayer(deckData, markerType, settings, tagSettings, options, app);
 
-    // Update layers
     deck.setProps({ layers: [tileLayer, markerLayer] });
 
-    // Determine what view state to use
     let shouldTransition = false;
     let targetViewState = null;
 
-    // Check if center/zoom are explicitly configured
     const hasConfiguredCenter = options.center && (options.center[0] !== 0 || options.center[1] !== 0);
 
     if (hasConfiguredCenter && options.zoom) {

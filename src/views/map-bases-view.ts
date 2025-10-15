@@ -12,6 +12,7 @@ import { Deck } from '@deck.gl/core';
 import { MapView as MapViewType } from '@deck.gl/core';
 import { createMapRenderer, MapPoint, updateMapPoints } from '../map-renderer';
 import MapPlugin from '../main';
+import { arePointsEqual, haveLocationsChanged } from '../pointutils';
 
 export const MapBasesViewType = 'map';
 
@@ -34,6 +35,7 @@ export class MapBasesView extends BasesView {
     private markerType: 'pins' | 'dots' = 'pins';
     private tileLayer: string = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
     private savedViewState: { latitude: number; longitude: number; zoom: number } | null = null;
+    private lastPoints: MapPoint[] = [];
 
     constructor(controller: QueryController, scrollEl: HTMLElement, plugin: MapPlugin) {
         super(controller);
@@ -83,6 +85,7 @@ export class MapBasesView extends BasesView {
                 console.error('Error finalizing deck:', e);
             }
             this.deck = null;
+            this.lastPoints = [];
         }
     }
 
@@ -239,6 +242,8 @@ export class MapBasesView extends BasesView {
             }
         });
 
+        this.lastPoints = points;
+
         this.containerEl.removeClass('is-loading');
 
         setTimeout(() => {
@@ -259,10 +264,20 @@ export class MapBasesView extends BasesView {
         return false;
     }
 
+    
+
     private updatePointsOnly(): void {
         if (!this.deck || !this.data) return;
 
         const points = this.extractPointsFromData();
+
+        if (arePointsEqual(points, this.lastPoints)) {
+            console.warn('onDataUpdated triggered but points are unchanged - skipping update');
+            return;
+        }
+        const locationsChanged = haveLocationsChanged(points, this.lastPoints);
+        
+        this.lastPoints = points;
 
         const hasConfiguredCenter = this.center[0] !== 0 || this.center[1] !== 0;
 
@@ -275,7 +290,7 @@ export class MapBasesView extends BasesView {
                 markerType: this.markerType,
                 center: hasConfiguredCenter ? this.center : undefined,
                 zoom: hasConfiguredCenter ? this.defaultZoom : undefined,
-                autoCenter: this.plugin.settings.autoCenter && !hasConfiguredCenter
+                autoCenter: this.plugin.settings.autoCenter && !hasConfiguredCenter && locationsChanged
             }
         });
     }
