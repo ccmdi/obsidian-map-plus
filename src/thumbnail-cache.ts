@@ -2,7 +2,7 @@ import { App, TFile, normalizePath } from 'obsidian';
 import type MapPlugin from './main';
 
 export interface ThumbnailCacheEntry {
-    dataUrl: string;
+    thumbnailPath: string;
     sourceModified: number;
     size: number;
 }
@@ -15,6 +15,7 @@ export interface ThumbnailCacheMetadata {
 const THUMBNAIL_MAX_SIZE = 25000; // 25kb target
 const THUMBNAIL_WIDTH = 300;
 const THUMBNAIL_HEIGHT = 200;
+const CACHE_DIR = '.obsidian/plugins/mapplus/.cache';
 
 export class ThumbnailCacheManager {
     private plugin: MapPlugin;
@@ -22,6 +23,7 @@ export class ThumbnailCacheManager {
     private cache: ThumbnailCacheMetadata;
     private cacheLoaded: boolean = false;
     private generationInProgress: boolean = false;
+    private cacheDir: string;
 
     constructor(plugin: MapPlugin, app: App) {
         this.plugin = plugin;
@@ -30,16 +32,23 @@ export class ThumbnailCacheManager {
             entries: {},
             pendingGeneration: []
         };
+        this.cacheDir = normalizePath(CACHE_DIR);
     }
 
     async loadCache(): Promise<void> {
         if (this.cacheLoaded) return;
 
         try {
-            const data = await this.plugin.loadData();
-            if (data && data.thumbnailCache) {
-                this.cache = data.thumbnailCache;
+            await this.ensureCacheDir();
+
+            const metadataPath = normalizePath(`${this.cacheDir}/metadata.json`);
+            const exists = await this.app.vault.adapter.exists(metadataPath);
+
+            if (exists) {
+                const content = await this.app.vault.adapter.read(metadataPath);
+                this.cache = JSON.parse(content);
             }
+
             this.cacheLoaded = true;
         } catch (e) {
             console.error('Failed to load thumbnail cache:', e);
@@ -52,9 +61,36 @@ export class ThumbnailCacheManager {
     }
 
     async saveCache(): Promise<void> {
-        const data = await this.plugin.loadData() || {};
-        data.thumbnailCache = this.cache;
-        await this.plugin.saveData(data);
+        try {
+            await this.ensureCacheDir();
+
+            const metadataPath = normalizePath(`${this.cacheDir}/metadata.json`);
+            await this.app.vault.adapter.write(metadataPath, JSON.stringify(this.cache, null, 2));
+        } catch (e) {
+            console.error('Failed to save thumbnail cache:', e);
+        }
+    }
+
+    private async ensureCacheDir(): Promise<void> {
+        const exists = await this.app.vault.adapter.exists(this.cacheDir);
+        if (!exists) {
+            await this.app.vault.adapter.mkdir(this.cacheDir);
+        }
+    }
+
+    private getThumbnailFilename(sourcePath: string): string {
+        const hash = this.hashString(sourcePath);
+        return `thumb_${hash}.jpg`;
+    }
+
+    private hashString(str: string): string {
+        let hash = 0;
+        for (let i = 0; i < str.length; i++) {
+            const char = str.charCodeAt(i);
+            hash = ((hash << 5) - hash) + char;
+            hash = hash & hash;
+        }
+        return Math.abs(hash).toString(36);
     }
 
     async getThumbnail(coverPath: string, sourceFile: TFile): Promise<string | null> {
@@ -72,11 +108,16 @@ export class ThumbnailCacheManager {
 
         if (cached) {
             if (cached.sourceModified === coverFile.stat.mtime) {
-                return cached.dataUrl;
-            } else {
-                delete this.cache.entries[cacheKey];
-                await this.saveCache();
+                const thumbnailExists = await this.app.vault.adapter.exists(cached.thumbnailPath);
+                if (thumbnailExists) {
+                    const arrayBuffer = await this.app.vault.adapter.readBinary(cached.thumbnailPath);
+                    const blob = new Blob([arrayBuffer], { type: 'image/jpeg' });
+                    return URL.createObjectURL(blob);
+                }
             }
+
+            delete this.cache.entries[cacheKey];
+            await this.saveCache();
         }
 
         return null;
@@ -119,15 +160,30 @@ export class ThumbnailCacheManager {
                 dataUrl = canvas.toDataURL('image/jpeg', quality);
             }
 
+            const base64Data = dataUrl.split(',')[1];
+            const binaryData = atob(base64Data);
+            const bytes = new Uint8Array(binaryData.length);
+            for (let i = 0; i < binaryData.length; i++) {
+                bytes[i] = binaryData.charCodeAt(i);
+            }
+
+            const thumbnailFilename = this.getThumbnailFilename(coverFile.path);
+            const thumbnailPath = normalizePath(`${this.cacheDir}/${thumbnailFilename}`);
+
+            await this.ensureCacheDir();
+            await this.app.vault.adapter.writeBinary(thumbnailPath, bytes.buffer);
+
             const cacheKey = coverFile.path;
             this.cache.entries[cacheKey] = {
-                dataUrl,
+                thumbnailPath,
                 sourceModified: coverFile.stat.mtime,
-                size: dataUrl.length
+                size: bytes.length
             };
 
             await this.saveCache();
-            return dataUrl;
+
+            const resultBlob = new Blob([bytes], { type: 'image/jpeg' });
+            return URL.createObjectURL(resultBlob);
         } catch (e) {
             console.error('Failed to generate thumbnail:', e);
             return null;
@@ -201,10 +257,23 @@ export class ThumbnailCacheManager {
                         dataUrl = canvas.toDataURL('image/jpeg', quality);
                     }
 
+                    const base64Data = dataUrl.split(',')[1];
+                    const binaryData = atob(base64Data);
+                    const bytes = new Uint8Array(binaryData.length);
+                    for (let j = 0; j < binaryData.length; j++) {
+                        bytes[j] = binaryData.charCodeAt(j);
+                    }
+
+                    const thumbnailFilename = this.getThumbnailFilename(imagePath);
+                    const thumbnailPath = normalizePath(`${this.cacheDir}/${thumbnailFilename}`);
+
+                    await this.ensureCacheDir();
+                    await this.app.vault.adapter.writeBinary(thumbnailPath, bytes.buffer);
+
                     this.cache.entries[imagePath] = {
-                        dataUrl,
+                        thumbnailPath,
                         sourceModified: file.stat.mtime,
-                        size: dataUrl.length
+                        size: bytes.length
                     };
                 } catch (e) {
                     console.error(`Failed to generate thumbnail for ${imagePath}:`, e);
@@ -228,6 +297,19 @@ export class ThumbnailCacheManager {
 
     async clearCache(): Promise<void> {
         await this.loadCache();
+
+        const thumbnailPaths = Object.values(this.cache.entries).map(entry => entry.thumbnailPath);
+        for (const path of thumbnailPaths) {
+            try {
+                const exists = await this.app.vault.adapter.exists(path);
+                if (exists) {
+                    await this.app.vault.adapter.remove(path);
+                }
+            } catch (e) {
+                console.error(`Failed to remove thumbnail ${path}:`, e);
+            }
+        }
+
         this.cache = {
             entries: {},
             pendingGeneration: []
