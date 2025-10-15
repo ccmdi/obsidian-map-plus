@@ -10,6 +10,7 @@ export interface MapPluginSettings {
     autoCenter: boolean;
     transitionDuration: number;
     enableThumbnailCache: boolean;
+    thumbnailTargetSize: number;
     tagSettings: MapTagSettings;
 }
 
@@ -21,6 +22,7 @@ export const DEFAULT_SETTINGS: MapPluginSettings = {
     autoCenter: true,
     transitionDuration: 1000,
     enableThumbnailCache: false,
+    thumbnailTargetSize: 25,
     tagSettings: DEFAULT_MAP_TAG_SETTINGS
 };
 
@@ -119,27 +121,40 @@ export class MapSettingTab extends PluginSettingTab {
                 }));
 
         if (this.plugin.settings.enableThumbnailCache) {
+            new Setting(containerEl)
+                .setName('Thumbnail target size')
+                .setDesc('Target file size for cached thumbnails (in KB)')
+                .addSlider(slider => slider
+                    .setLimits(10, 50, 5)
+                    .setValue(this.plugin.settings.thumbnailTargetSize)
+                    .setDynamicTooltip()
+                    .onChange(async (value) => {
+                        this.plugin.settings.thumbnailTargetSize = value;
+                        await this.plugin.saveSettings();
+                    }));
+
             const stats = this.plugin.thumbnailCache.getCacheStats();
             const sizeKB = (stats.totalSize / 1024).toFixed(1);
+            const isGenerating = this.plugin.thumbnailCache.isGenerating();
 
             const cacheInfo = new Setting(containerEl)
                 .setName('Thumbnail cache status')
                 .setDesc(`${stats.count} thumbnails cached (${sizeKB} KB)`);
 
-            if (stats.pending > 0) {
-                cacheInfo.setDesc(`${stats.count} thumbnails cached (${sizeKB} KB), ${stats.pending} pending generation`);
-
+            if (stats.pending > 0 || isGenerating) {
+                cacheInfo.setDesc(`${stats.count} thumbnails cached (${sizeKB} KB), ${stats.pending} pending`);
+            } else if (stats.count > 0) {
                 cacheInfo.addButton(button => button
-                    .setButtonText('Generate thumbnails')
+                    .setButtonText('Refresh cache')
                     .onClick(async () => {
                         button.setDisabled(true);
-                        button.setButtonText('Generating...');
+                        button.setButtonText('Refreshing...');
 
-                        await this.plugin.thumbnailCache.generatePendingThumbnails((current, total) => {
-                            button.setButtonText(`Generating ${current}/${total}...`);
+                        await this.plugin.thumbnailCache.rebuildCache((current, total) => {
+                            button.setButtonText(`Refreshing ${current}/${total}...`);
                         });
 
-                        button.setButtonText('Generate thumbnails');
+                        button.setButtonText('Refresh cache');
                         button.setDisabled(false);
                         this.display();
                     }));

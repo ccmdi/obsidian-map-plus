@@ -69,22 +69,25 @@
     position: absolute;
     left: var(--tooltip-x, 0);
     top: var(--tooltip-y, 0);
-    padding: 8px 12px;
+    padding: 10px 14px;
     background: var(--background-primary);
     color: var(--text-normal);
-    border-radius: 4px;
+    border-radius: 6px;
     pointer-events: none;
     opacity: 0;
     z-index: 1000;
-    font-size: 14px;
-    box-shadow: 0 2px 8px rgba(0,0,0,0.3);
-    max-width: 250px;
+    font-size: 13px;
+    box-shadow: 0 2px 12px rgba(0,0,0,0.4);
+    width: max-content;
+    max-width: 400px;
     transition: opacity 0.15s ease;
 
     .map-tooltip-property {
-        display: flex;
+        display: grid;
+        grid-template-columns: auto 1fr;
         gap: 8px;
         margin-top: 4px;
+        align-items: baseline;
     }
 
     .map-tooltip-tags {
@@ -97,12 +100,15 @@
     .map-tooltip-property-label {
         color: var(--text-muted);
         font-size: 12px;
+        white-space: nowrap;
     }
 
     .map-tooltip-property-value {
         font-size: 12px;
-        word-break: break-word;
-        overflow-wrap: break-word;  
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        min-width: 0;
     }
 
     .map-tooltip-cover-image {
@@ -115,7 +121,9 @@
     }
 
     .map-tooltip-title {
-        font-weight: bold;
+        font-weight: 600;
+        font-size: 14px;
+        margin-bottom: 2px;
     }
 
     .map-tooltip-property-container {

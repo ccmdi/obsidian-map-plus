@@ -19,13 +19,10 @@ export default class MapPlugin extends Plugin {
 
         if (this.settings.enableThumbnailCache) {
             await this.thumbnailCache.loadCache();
-            const stats = this.thumbnailCache.getCacheStats();
 
-            if (stats.pending > 0) {
-                setTimeout(() => {
-                    this.thumbnailCache.generatePendingThumbnails();
-                }, 2000);
-            }
+            setTimeout(() => {
+                this.thumbnailCache.generatePendingThumbnails();
+            }, 2000);
         }
 
         this.registerBasesView('map', {

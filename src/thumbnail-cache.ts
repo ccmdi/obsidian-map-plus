@@ -12,7 +12,6 @@ export interface ThumbnailCacheMetadata {
     pendingGeneration: string[];
 }
 
-const THUMBNAIL_MAX_SIZE = 25000; // 25kb target
 const THUMBNAIL_WIDTH = 300;
 const THUMBNAIL_HEIGHT = 200;
 const CACHE_DIR = '.obsidian/plugins/mapplus/.cache';
@@ -123,12 +122,10 @@ export class ThumbnailCacheManager {
         return null;
     }
 
-    async generateThumbnail(coverPath: string, sourceFile: TFile): Promise<string | null> {
-        const coverFile = this.app.metadataCache.getFirstLinkpathDest(coverPath, sourceFile.path);
-        if (!coverFile) return null;
-
+    private async generateThumbnailFromFile(file: TFile): Promise<{ thumbnailPath: string; size: number } | null> {
         try {
-            const arrayBuffer = await this.app.vault.readBinary(coverFile);
+            const targetSize = this.plugin.settings.thumbnailTargetSize * 1000;
+            const arrayBuffer = await this.app.vault.readBinary(file);
             const blob = new Blob([arrayBuffer]);
             const bitmap = await createImageBitmap(blob);
 
@@ -155,7 +152,7 @@ export class ThumbnailCacheManager {
             let quality = 0.7;
             let dataUrl = canvas.toDataURL('image/jpeg', quality);
 
-            while (dataUrl.length > THUMBNAIL_MAX_SIZE && quality > 0.1) {
+            while (dataUrl.length > targetSize && quality > 0.1) {
                 quality -= 0.1;
                 dataUrl = canvas.toDataURL('image/jpeg', quality);
             }
@@ -167,27 +164,41 @@ export class ThumbnailCacheManager {
                 bytes[i] = binaryData.charCodeAt(i);
             }
 
-            const thumbnailFilename = this.getThumbnailFilename(coverFile.path);
+            const thumbnailFilename = this.getThumbnailFilename(file.path);
             const thumbnailPath = normalizePath(`${this.cacheDir}/${thumbnailFilename}`);
 
             await this.ensureCacheDir();
             await this.app.vault.adapter.writeBinary(thumbnailPath, bytes.buffer);
 
-            const cacheKey = coverFile.path;
-            this.cache.entries[cacheKey] = {
+            return {
                 thumbnailPath,
-                sourceModified: coverFile.stat.mtime,
                 size: bytes.length
             };
-
-            await this.saveCache();
-
-            const resultBlob = new Blob([bytes], { type: 'image/jpeg' });
-            return URL.createObjectURL(resultBlob);
         } catch (e) {
             console.error('Failed to generate thumbnail:', e);
             return null;
         }
+    }
+
+    async generateThumbnail(coverPath: string, sourceFile: TFile): Promise<string | null> {
+        const coverFile = this.app.metadataCache.getFirstLinkpathDest(coverPath, sourceFile.path);
+        if (!coverFile) return null;
+
+        const result = await this.generateThumbnailFromFile(coverFile);
+        if (!result) return null;
+
+        const cacheKey = coverFile.path;
+        this.cache.entries[cacheKey] = {
+            thumbnailPath: result.thumbnailPath,
+            sourceModified: coverFile.stat.mtime,
+            size: result.size
+        };
+
+        await this.saveCache();
+
+        const arrayBuffer = await this.app.vault.adapter.readBinary(result.thumbnailPath);
+        const blob = new Blob([arrayBuffer], { type: 'image/jpeg' });
+        return URL.createObjectURL(blob);
     }
 
     async markForGeneration(coverPath: string, sourceFile: TFile): Promise<void> {
@@ -224,65 +235,72 @@ export class ThumbnailCacheManager {
 
             const file = this.app.vault.getAbstractFileByPath(imagePath);
             if (file instanceof TFile) {
-                try {
-                    const arrayBuffer = await this.app.vault.readBinary(file);
-                    const blob = new Blob([arrayBuffer]);
-                    const bitmap = await createImageBitmap(blob);
-
-                    const canvas = document.createElement('canvas');
-                    const ctx = canvas.getContext('2d');
-                    if (!ctx) continue;
-
-                    const aspectRatio = bitmap.width / bitmap.height;
-                    let width = THUMBNAIL_WIDTH;
-                    let height = THUMBNAIL_HEIGHT;
-
-                    if (aspectRatio > width / height) {
-                        height = width / aspectRatio;
-                    } else {
-                        width = height * aspectRatio;
-                    }
-
-                    canvas.width = width;
-                    canvas.height = height;
-
-                    ctx.drawImage(bitmap, 0, 0, width, height);
-                    bitmap.close();
-
-                    let quality = 0.7;
-                    let dataUrl = canvas.toDataURL('image/jpeg', quality);
-
-                    while (dataUrl.length > THUMBNAIL_MAX_SIZE && quality > 0.1) {
-                        quality -= 0.1;
-                        dataUrl = canvas.toDataURL('image/jpeg', quality);
-                    }
-
-                    const base64Data = dataUrl.split(',')[1];
-                    const binaryData = atob(base64Data);
-                    const bytes = new Uint8Array(binaryData.length);
-                    for (let j = 0; j < binaryData.length; j++) {
-                        bytes[j] = binaryData.charCodeAt(j);
-                    }
-
-                    const thumbnailFilename = this.getThumbnailFilename(imagePath);
-                    const thumbnailPath = normalizePath(`${this.cacheDir}/${thumbnailFilename}`);
-
-                    await this.ensureCacheDir();
-                    await this.app.vault.adapter.writeBinary(thumbnailPath, bytes.buffer);
-
+                const result = await this.generateThumbnailFromFile(file);
+                if (result) {
                     this.cache.entries[imagePath] = {
-                        thumbnailPath,
+                        thumbnailPath: result.thumbnailPath,
                         sourceModified: file.stat.mtime,
-                        size: bytes.length
+                        size: result.size
                     };
-                } catch (e) {
-                    console.error(`Failed to generate thumbnail for ${imagePath}:`, e);
                 }
             }
 
             const idx = this.cache.pendingGeneration.indexOf(imagePath);
             if (idx > -1) {
                 this.cache.pendingGeneration.splice(idx, 1);
+            }
+
+            await this.saveCache();
+
+            if (onProgress) {
+                onProgress(i + 1, total);
+            }
+        }
+
+        this.generationInProgress = false;
+    }
+
+    async rebuildCache(onProgress?: (current: number, total: number) => void): Promise<void> {
+        if (this.generationInProgress || !this.plugin.settings.enableThumbnailCache) {
+            return;
+        }
+
+        await this.loadCache();
+
+        const allImagePaths = Object.keys(this.cache.entries);
+        if (allImagePaths.length === 0) {
+            return;
+        }
+
+        this.generationInProgress = true;
+
+        const total = allImagePaths.length;
+
+        for (let i = 0; i < allImagePaths.length; i++) {
+            const imagePath = allImagePaths[i];
+
+            const file = this.app.vault.getAbstractFileByPath(imagePath);
+            if (file instanceof TFile) {
+                const oldEntry = this.cache.entries[imagePath];
+                if (oldEntry) {
+                    try {
+                        const exists = await this.app.vault.adapter.exists(oldEntry.thumbnailPath);
+                        if (exists) {
+                            await this.app.vault.adapter.remove(oldEntry.thumbnailPath);
+                        }
+                    } catch (e) {
+                        console.error(`Failed to remove old thumbnail ${oldEntry.thumbnailPath}:`, e);
+                    }
+                }
+
+                const result = await this.generateThumbnailFromFile(file);
+                if (result) {
+                    this.cache.entries[imagePath] = {
+                        thumbnailPath: result.thumbnailPath,
+                        sourceModified: file.stat.mtime,
+                        size: result.size
+                    };
+                }
             }
 
             await this.saveCache();
