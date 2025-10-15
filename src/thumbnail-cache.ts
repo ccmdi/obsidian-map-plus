@@ -149,19 +149,26 @@ export class ThumbnailCacheManager {
             ctx.drawImage(bitmap, 0, 0, width, height);
             bitmap.close();
 
-            let quality = 0.7;
-            let dataUrl = canvas.toDataURL('image/jpeg', quality);
-
-            while (dataUrl.length > targetSize && quality > 0.1) {
-                quality -= 0.1;
-                dataUrl = canvas.toDataURL('image/jpeg', quality);
-            }
-
+            // Start with max quality and only reduce if needed
+            let quality = 1.0;
+            const dataUrl = canvas.toDataURL('image/jpeg', quality);
             const base64Data = dataUrl.split(',')[1];
             const binaryData = atob(base64Data);
-            const bytes = new Uint8Array(binaryData.length);
+            let bytes = new Uint8Array(binaryData.length);
             for (let i = 0; i < binaryData.length; i++) {
                 bytes[i] = binaryData.charCodeAt(i);
+            }
+
+            // Only reduce quality if we exceed the target
+            while (bytes.length > targetSize && quality > 0.1) {
+                quality -= 0.05;
+                const dataUrl = canvas.toDataURL('image/jpeg', quality);
+                const base64Data = dataUrl.split(',')[1];
+                const binaryData = atob(base64Data);
+                bytes = new Uint8Array(binaryData.length);
+                for (let i = 0; i < binaryData.length; i++) {
+                    bytes[i] = binaryData.charCodeAt(i);
+                }
             }
 
             const thumbnailFilename = this.getThumbnailFilename(file.path);
@@ -317,6 +324,7 @@ export class ThumbnailCacheManager {
         await this.loadCache();
 
         const thumbnailPaths = Object.values(this.cache.entries).map(entry => entry.thumbnailPath);
+
         for (const path of thumbnailPaths) {
             try {
                 const exists = await this.app.vault.adapter.exists(path);

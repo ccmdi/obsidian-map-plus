@@ -117,6 +117,14 @@ export class MapSettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.enableThumbnailCache = value;
                     await this.plugin.saveSettings();
+
+                    if (value) {
+                        await this.plugin.thumbnailCache.loadCache();
+                        setTimeout(() => {
+                            this.plugin.thumbnailCache.generatePendingThumbnails();
+                        }, 500);
+                    }
+
                     this.display();
                 }));
 
@@ -143,18 +151,20 @@ export class MapSettingTab extends PluginSettingTab {
 
             if (stats.pending > 0 || isGenerating) {
                 cacheInfo.setDesc(`${stats.count} thumbnails cached (${sizeKB} KB), ${stats.pending} pending`);
-            } else if (stats.count > 0) {
+            }
+
+            if (stats.count > 0 || stats.pending > 0) {
                 cacheInfo.addButton(button => button
-                    .setButtonText('Refresh cache')
+                    .setButtonText('Rebuild cache')
                     .onClick(async () => {
                         button.setDisabled(true);
-                        button.setButtonText('Refreshing...');
+                        button.setButtonText('Rebuilding...');
 
                         await this.plugin.thumbnailCache.rebuildCache((current, total) => {
-                            button.setButtonText(`Refreshing ${current}/${total}...`);
+                            button.setButtonText(`Rebuilding ${current}/${total}...`);
                         });
 
-                        button.setButtonText('Refresh cache');
+                        button.setButtonText('Rebuild cache');
                         button.setDisabled(false);
                         this.display();
                     }));
