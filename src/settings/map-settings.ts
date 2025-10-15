@@ -179,6 +179,10 @@ export class MapSettingTab extends PluginSettingTab {
                         const progressInterval = window.setInterval(() => {
                             updateStatus();
                         }, 500);
+                        
+                        // force refresh markers for cover context
+                        this.plugin.refreshAllMapViews();
+                        await new Promise(resolve => setTimeout(resolve, 1000));
 
                         await this.plugin.thumbnailCache.rebuildCache((current, total) => {
                             button.setButtonText(`Rebuilding ${current}/${total}...`);
