@@ -331,7 +331,7 @@ export class MapBasesView extends BasesView {
             const properties: Array<{ name: string; value: string }> = [];
             if (this.data.properties) {
                 for (const prop of this.data.properties.slice(0, 20)) {
-                    if (prop === this.coordinatesProp || prop === this.coverProp) continue;
+                    if (prop === this.coordinatesProp) continue;
 
                     try {
                         const value = entry.getValue(prop);
