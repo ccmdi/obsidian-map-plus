@@ -111,7 +111,7 @@ export class MapSettingTab extends PluginSettingTab {
 
         const thumbnailToggle = new Setting(containerEl)
             .setName('Enable thumbnail cache')
-            .setDesc('Cache small thumbnails of location cover images for faster hover performance')
+            .setDesc('Cache thumbnails of location cover images - instant tooltips')
             .addToggle(toggle => toggle
                 .setValue(this.plugin.settings.enableThumbnailCache)
                 .onChange(async (value) => {
@@ -197,7 +197,7 @@ export class MapSettingTab extends PluginSettingTab {
 
             new Setting(containerEl)
                 .setName('Clear thumbnail cache')
-                .setDesc('Delete all cached thumbnails to free up space')
+                .setDesc('Delete all cached thumbnails')
                 .addButton(button => button
                     .setButtonText('Clear cache')
                     .setWarning()
