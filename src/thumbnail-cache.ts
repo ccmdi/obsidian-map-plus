@@ -274,17 +274,22 @@ export class ThumbnailCacheManager {
 
         await this.loadCache();
 
-        const allImagePaths = Object.keys(this.cache.entries);
-        if (allImagePaths.length === 0) {
+        const allImagePaths = new Set<string>([
+            ...Object.keys(this.cache.entries),
+            ...this.cache.pendingGeneration
+        ]);
+
+        if (allImagePaths.size === 0) {
             return;
         }
 
         this.generationInProgress = true;
 
-        const total = allImagePaths.length;
+        const imagePaths = Array.from(allImagePaths);
+        const total = imagePaths.length;
 
-        for (let i = 0; i < allImagePaths.length; i++) {
-            const imagePath = allImagePaths[i];
+        for (let i = 0; i < imagePaths.length; i++) {
+            const imagePath = imagePaths[i];
 
             const file = this.app.vault.getAbstractFileByPath(imagePath);
             if (file instanceof TFile) {
@@ -308,6 +313,11 @@ export class ThumbnailCacheManager {
                         size: result.size
                     };
                 }
+            }
+
+            const pendingIdx = this.cache.pendingGeneration.indexOf(imagePath);
+            if (pendingIdx > -1) {
+                this.cache.pendingGeneration.splice(pendingIdx, 1);
             }
 
             await this.saveCache();

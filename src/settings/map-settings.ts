@@ -145,25 +145,46 @@ export class MapSettingTab extends PluginSettingTab {
             const sizeKB = (stats.totalSize / 1024).toFixed(1);
             const isGenerating = this.plugin.thumbnailCache.isGenerating();
 
-            const cacheInfo = new Setting(containerEl)
-                .setName('Thumbnail cache status')
-                .setDesc(`${stats.count} thumbnails cached (${sizeKB} KB)`);
+            const statusSetting = new Setting(containerEl)
+                .setName('Thumbnail cache status');
+
+            const updateStatus = () => {
+                const currentStats = this.plugin.thumbnailCache.getCacheStats();
+                const currentSizeKB = (currentStats.totalSize / 1024).toFixed(1);
+
+                if (currentStats.pending > 0) {
+                    statusSetting.setDesc(`${currentStats.count} thumbnails cached (${currentSizeKB} KB), ${currentStats.pending} pending`);
+                } else {
+                    statusSetting.setDesc(`${currentStats.count} thumbnails cached (${currentSizeKB} KB)`);
+                }
+            };
+
+            updateStatus();
 
             if (stats.pending > 0 || isGenerating) {
-                cacheInfo.setDesc(`${stats.count} thumbnails cached (${sizeKB} KB), ${stats.pending} pending`);
-            }
-
-            if (stats.count > 0 || stats.pending > 0) {
-                cacheInfo.addButton(button => button
+                const refreshInterval = window.setInterval(() => {
+                    updateStatus();
+                    if (this.plugin.thumbnailCache.getCacheStats().pending === 0 && !this.plugin.thumbnailCache.isGenerating()) {
+                        clearInterval(refreshInterval);
+                        this.display();
+                    }
+                }, 500);
+            } else {
+                statusSetting.addButton(button => button
                     .setButtonText('Rebuild cache')
                     .onClick(async () => {
                         button.setDisabled(true);
                         button.setButtonText('Rebuilding...');
 
+                        const progressInterval = window.setInterval(() => {
+                            updateStatus();
+                        }, 500);
+
                         await this.plugin.thumbnailCache.rebuildCache((current, total) => {
                             button.setButtonText(`Rebuilding ${current}/${total}...`);
                         });
 
+                        clearInterval(progressInterval);
                         button.setButtonText('Rebuild cache');
                         button.setDisabled(false);
                         this.display();
