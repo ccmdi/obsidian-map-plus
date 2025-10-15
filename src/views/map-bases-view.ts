@@ -264,6 +264,20 @@ export class MapBasesView extends BasesView {
         return false;
     }
 
+    private haveLocationsChanged(points1: MapPoint[], points2: MapPoint[]): boolean {
+        // Check if count changed
+        if (points1.length !== points2.length) return true;
+
+        // Check if any location (lat/lng) changed
+        for (let i = 0; i < points1.length; i++) {
+            if (points1[i].lat !== points2[i].lat || points1[i].lng !== points2[i].lng) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     private arePointsEqual(points1: MapPoint[], points2: MapPoint[]): boolean {
         if (points1.length !== points2.length) return false;
 
@@ -316,6 +330,9 @@ export class MapBasesView extends BasesView {
             return;
         }
 
+        // Check if locations changed (for auto-centering decision)
+        const locationsChanged = this.haveLocationsChanged(points, this.lastPoints);
+
         // Store the new points for future comparison
         this.lastPoints = points;
 
@@ -330,7 +347,8 @@ export class MapBasesView extends BasesView {
                 markerType: this.markerType,
                 center: hasConfiguredCenter ? this.center : undefined,
                 zoom: hasConfiguredCenter ? this.defaultZoom : undefined,
-                autoCenter: this.plugin.settings.autoCenter && !hasConfiguredCenter
+                // Only auto-center if locations actually changed (not just properties/metadata)
+                autoCenter: this.plugin.settings.autoCenter && !hasConfiguredCenter && locationsChanged
             }
         });
     }
