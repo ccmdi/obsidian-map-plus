@@ -424,6 +424,9 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
                 thumbnailSrc = await config.thumbnailCache.getThumbnail(point.cover, point.file);
             }
 
+            // Check if this update is still valid after async operation
+            if (thisUpdateId !== tooltipUpdateId) return;
+
             if (thumbnailSrc) {
                 const img = new Image();
                 img.classList.add('map-tooltip-cover-image');
