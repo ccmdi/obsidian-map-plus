@@ -146,12 +146,11 @@ export class MapBasesView extends BasesView {
     }
 
     private async renderMap(): Promise<void> {
-        // Need either coordinates property OR global lat/lng keys
-        if (!this.data || (!this.coordinatesProp && (!this.plugin.settings.latKey || !this.plugin.settings.lngKey))) {
+        if (!this.data) {
             this.containerEl.removeClass('is-loading');
             return;
         }
-            
+        
         const loadingOverlay = this.containerEl.createDiv({ cls: 'map-loading-overlay' });
         const spinner = loadingOverlay.createDiv();
 
