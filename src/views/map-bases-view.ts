@@ -234,7 +234,6 @@ export class MapBasesView extends BasesView {
                 height: height,
                 markerType: this.markerType,
                 tileLayer: this.tileLayer,
-                showSearch: false,
                 onTilesLoaded: () => {
                     tilesLoaded = true;
                     hideOverlay();

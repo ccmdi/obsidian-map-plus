@@ -62,8 +62,6 @@ export interface MapRendererOptions {
         markerSize?: number;
         markerColor?: string;
         tileLayer?: string;
-        showSearch?: boolean;
-        showTags?: boolean;
         autoCenter?: boolean;
         onMarkerClick?: (point: MapPoint, event: MjolnirEvent) => void;
         onTilesLoaded?: () => void;
@@ -478,11 +476,13 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
             const propsContainer = tooltip.createEl('div', { cls: 'map-tooltip-property-container' });
 
             point.properties.forEach(prop => {
+                if (prop.name.toLowerCase() === 'tags') return;
+
                 const propEl = propsContainer.createEl('div', { cls: 'map-tooltip-property' });
-                
+
                 const labelEl = propEl.createEl('span', { cls: 'map-tooltip-property-label' });
                 labelEl.textContent = prop.name + ':';
-                
+
                 const valueEl = propEl.createEl('span', { cls: 'map-tooltip-property-value' });
 
                 // render value
@@ -500,14 +500,13 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
             });
         }
 
-        //todo
-        if (options.showTags && point.tags && point.tags.length > 0) {
+        // show tags
+        if (point.tags && point.tags.length > 0) {
             const tagsEl = tooltip.createEl('div', { cls: 'map-tooltip-tags' });
             point.tags.forEach((tag) => {
                 const tagEl = tagsEl.createEl('a', { cls: 'tag' });
                 tagEl.textContent = `#${tag}`;
             });
-            tooltip.appendChild(tagsEl);
         }
 
         // Wait for all images to load before showing tooltip
