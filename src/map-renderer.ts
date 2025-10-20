@@ -8,6 +8,7 @@ import { MapView as MapViewType } from '@deck.gl/core';
 
 import { MapTagSettings } from './settings/map-tag-settings';
 import type MapPlugin from './main';
+import type { ThumbnailCacheManager } from './thumbnail-cache';
 
 function easeCubic(t: number): number {
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -52,6 +53,7 @@ export interface MapRendererOptions {
     app: App;
     settings: MapPlugin['settings'];
     tagSettings?: MapTagSettings;
+    thumbnailCache?: ThumbnailCacheManager;
     options: {
         center?: [number, number];
         zoom?: number;
@@ -60,8 +62,6 @@ export interface MapRendererOptions {
         markerSize?: number;
         markerColor?: string;
         tileLayer?: string;
-        showSearch?: boolean;
-        showTags?: boolean;
         autoCenter?: boolean;
         onMarkerClick?: (point: MapPoint, event: MjolnirEvent) => void;
         onTilesLoaded?: () => void;
@@ -418,15 +418,20 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
 
         // show cover image
         if (point.cover && point.file) {
-            const coverFile = app.metadataCache.getFirstLinkpathDest(point.cover, point.file.path);
-            if (coverFile) {
+            let thumbnailSrc: string | null = null;
+
+            if (config.thumbnailCache && settings.enableThumbnailCache) {
+                thumbnailSrc = await config.thumbnailCache.getThumbnail(point.cover, point.file);
+            }
+
+            // Check if this update is still valid after async operation
+            if (thisUpdateId !== tooltipUpdateId) return;
+
+            if (thumbnailSrc) {
                 const img = new Image();
                 img.classList.add('map-tooltip-cover-image');
+                img.src = thumbnailSrc;
 
-                const src = app.vault.getResourcePath(coverFile);
-                img.src = src;
-
-                // Decode image off main thread, then append to DOM
                 const imagePromise = img.decode()
                     .then(() => {
                         if (thisUpdateId === tooltipUpdateId) {
@@ -440,6 +445,29 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
                     });
 
                 renderPromises.push(imagePromise);
+            } else {
+                const coverFile = app.metadataCache.getFirstLinkpathDest(point.cover, point.file.path);
+                if (coverFile) {
+                    const img = new Image();
+                    img.classList.add('map-tooltip-cover-image');
+
+                    const src = app.vault.getResourcePath(coverFile);
+                    img.src = src;
+
+                    const imagePromise = img.decode()
+                        .then(() => {
+                            if (thisUpdateId === tooltipUpdateId) {
+                                tooltip.insertBefore(img, tooltip.firstChild);
+                            }
+                        })
+                        .catch(() => {
+                            if (thisUpdateId === tooltipUpdateId) {
+                                tooltip.insertBefore(img, tooltip.firstChild);
+                            }
+                        });
+
+                    renderPromises.push(imagePromise);
+                }
             }
         }
 
@@ -451,11 +479,13 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
             const propsContainer = tooltip.createEl('div', { cls: 'map-tooltip-property-container' });
 
             point.properties.forEach(prop => {
+                if (prop.name.toLowerCase() === 'tags') return;
+
                 const propEl = propsContainer.createEl('div', { cls: 'map-tooltip-property' });
-                
+
                 const labelEl = propEl.createEl('span', { cls: 'map-tooltip-property-label' });
                 labelEl.textContent = prop.name + ':';
-                
+
                 const valueEl = propEl.createEl('span', { cls: 'map-tooltip-property-value' });
 
                 // render value
@@ -473,14 +503,13 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
             });
         }
 
-        //todo
-        if (options.showTags && point.tags && point.tags.length > 0) {
+        // show tags
+        if (point.tags && point.tags.length > 0) {
             const tagsEl = tooltip.createEl('div', { cls: 'map-tooltip-tags' });
             point.tags.forEach((tag) => {
                 const tagEl = tagsEl.createEl('a', { cls: 'tag' });
                 tagEl.textContent = `#${tag}`;
             });
-            tooltip.appendChild(tagsEl);
         }
 
         // Wait for all images to load before showing tooltip

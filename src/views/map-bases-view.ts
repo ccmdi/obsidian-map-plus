@@ -146,12 +146,11 @@ export class MapBasesView extends BasesView {
     }
 
     private async renderMap(): Promise<void> {
-        // Need either coordinates property OR global lat/lng keys
-        if (!this.data || (!this.coordinatesProp && (!this.plugin.settings.latKey || !this.plugin.settings.lngKey))) {
+        if (!this.data) {
             this.containerEl.removeClass('is-loading');
             return;
         }
-            
+        
         const loadingOverlay = this.containerEl.createDiv({ cls: 'map-loading-overlay' });
         const spinner = loadingOverlay.createDiv();
 
@@ -228,13 +227,13 @@ export class MapBasesView extends BasesView {
             app: this.app,
             settings: settings,
             tagSettings: tagSettings,
+            thumbnailCache: this.plugin.thumbnailCache,
             options: {
                 center: centerToUse,
                 zoom: zoomToUse,
                 height: height,
                 markerType: this.markerType,
                 tileLayer: this.tileLayer,
-                showSearch: false,
                 onTilesLoaded: () => {
                     tilesLoaded = true;
                     hideOverlay();
@@ -320,13 +319,17 @@ export class MapBasesView extends BasesView {
                 const coverVal = entry.getValue(this.coverProp);
                 if (coverVal) {
                     point.cover = coverVal.toString();
+
+                    if (this.plugin.settings.enableThumbnailCache) {
+                        this.plugin.thumbnailCache.markForGeneration(point.cover, entry.file);
+                    }
                 }
             }
 
             const properties: Array<{ name: string; value: string }> = [];
             if (this.data.properties) {
                 for (const prop of this.data.properties.slice(0, 20)) {
-                    if (prop === this.coordinatesProp || prop === this.coverProp) continue;
+                    if (prop === this.coordinatesProp) continue;
 
                     try {
                         const value = entry.getValue(prop);
