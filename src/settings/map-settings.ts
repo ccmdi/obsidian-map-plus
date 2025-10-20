@@ -50,6 +50,9 @@ export class MapSettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.latKey = value;
                     await this.plugin.saveSettings();
+                    setTimeout(() => {
+                        this.plugin.refreshAllMapViews();
+                    }, 1000);
                 }));
 
         new Setting(containerEl)
@@ -61,6 +64,9 @@ export class MapSettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.lngKey = value;
                     await this.plugin.saveSettings();
+                    setTimeout(() => {
+                        this.plugin.refreshAllMapViews();
+                    }, 1000);
                 }));
         
         new Setting(containerEl)
@@ -72,7 +78,9 @@ export class MapSettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.strokeWidth = value;
                     await this.plugin.saveSettings();
-                    this.plugin.refreshAllMapViews();
+                    setTimeout(() => {
+                        this.plugin.refreshAllMapViews();
+                    }, 250);
                 }));
 
         new Setting(containerEl)
