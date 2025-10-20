@@ -28,6 +28,8 @@ The property value should be either:
 - A list: `[latitude, longitude]`
 - A string: `"latitude,longitude"`
 
+If you have separate `latitude` and `longitude` properties, [you can make a formula (virtual property) to combine them](https://help.obsidian.md/bases/views/map#:~:text=If%20you%20store%20coordinates,latitude%2C%20longitude).
+
 ### Customizing tags
 
 In plugin settings under "Tags":
