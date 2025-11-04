@@ -75,9 +75,11 @@ export class MapBasesView extends BasesView {
     private destroyMap(): void {
         if (this.deck) {
             try {
-                // @ts-ignore - accessing protected viewState
+                // @ts-expect-error - accessing protected viewState
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                 const viewState = this.deck.viewState?.MapView;
                 if (viewState) {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                     this.savedViewState = viewState;
                 }
                 this.deck.finalize();
@@ -145,7 +147,7 @@ export class MapBasesView extends BasesView {
         }
     }
 
-    private async renderMap(): Promise<void> {
+    private renderMap(): void {
         if (!this.data) {
             this.containerEl.removeClass('is-loading');
             return;
@@ -221,7 +223,7 @@ export class MapBasesView extends BasesView {
             zoomToUse = this.defaultZoom;
         }
 
-        this.deck = await createMapRenderer({
+        this.deck = createMapRenderer({
             containerEl: this.mapEl,
             points,
             app: this.app,
@@ -311,6 +313,7 @@ export class MapBasesView extends BasesView {
 
             const fileCache = this.app.metadataCache.getFileCache(entry.file);
             if (fileCache?.frontmatter?.tags) {
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                 const tags = fileCache.frontmatter.tags;
                 point.tags = Array.isArray(tags) ? tags : [tags];
             }
@@ -321,7 +324,7 @@ export class MapBasesView extends BasesView {
                     point.cover = coverVal.toString();
 
                     if (this.plugin.settings.enableThumbnailCache) {
-                        this.plugin.thumbnailCache.markForGeneration(point.cover, entry.file);
+                        void this.plugin.thumbnailCache.markForGeneration(point.cover, entry.file);
                     }
                 }
             }

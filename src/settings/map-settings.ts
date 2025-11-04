@@ -135,7 +135,7 @@ export class MapSettingTab extends PluginSettingTab {
                     if (value) {
                         await this.plugin.thumbnailCache.loadCache();
                         setTimeout(() => {
-                            this.plugin.thumbnailCache.generatePendingThumbnails();
+                            void this.plugin.thumbnailCache.generatePendingThumbnails();
                         }, 500);
                     }
 

@@ -32,7 +32,9 @@ export class MapTagSettingTab extends PluginSettingTab {
 }
 
 export function renderTagCustomizations(containerEl: HTMLElement, app: App, plugin: MapPlugin) {
-    containerEl.createEl('h3', { text: 'Tags' });
+    new Setting(containerEl)
+        .setName('Tags')
+        .setHeading();
     containerEl.createEl('p', {
         text: 'Drag to reorder priority. Higher tags take precedence.',
         cls: 'setting-item-description'
@@ -97,7 +99,7 @@ function createTagCustomizationSetting(container: HTMLElement, tag: string, cust
     iconBtn.onclick = () => {
         new IconPickerModal(app, customization.icon || '', (icon) => {
             plugin.tagSettings.tagCustomizations[tag].icon = icon;
-            plugin.saveTagSettings();
+            void plugin.saveTagSettings();
             displayTagCustomizations(container, app, plugin);
         }).open();
     };
@@ -158,7 +160,7 @@ function addNewTagCustomization(container: HTMLElement, app: App, plugin: MapPlu
             if (!plugin.tagSettings.tagPriority.includes(tagName)) {
                 plugin.tagSettings.tagPriority.push(tagName);
             }
-            plugin.saveTagSettings();
+            void plugin.saveTagSettings();
             displayTagCustomizations(container, app, plugin);
         }).open();
     }).open();
@@ -176,7 +178,6 @@ class TagSuggestModal extends SuggestModal<string> {
     getSuggestions(query: string): string[] {
         const tags = new Set<string>();
         const allTags = this.app.metadataCache.getTags();
-        console.log(allTags);
         Object.keys(allTags).forEach(tag => {
             const cleanTag = tag.startsWith('#') ? tag.substring(1) : tag;
             tags.add(cleanTag);

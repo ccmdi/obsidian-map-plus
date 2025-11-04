@@ -6,6 +6,7 @@ declare module "obsidian" {
     }
 
     interface Workspace {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         on(name: "map:refresh-all-views", callback: () => void, ctx?: any): EventRef;
     }
 }

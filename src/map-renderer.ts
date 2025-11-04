@@ -171,7 +171,7 @@ function handlePointClick(info: PickingInfo<DeckDataPoint>, event: MjolnirEvent,
             (srcEvent && 'button' in srcEvent && srcEvent.button === 1) ||
             srcEvent?.ctrlKey ||
             srcEvent?.metaKey;
-        app.workspace.getLeaf(newTab).openFile(info.object.point.file);
+        void app.workspace.getLeaf(newTab).openFile(info.object.point.file).catch(console.error);
     }
 }
 
@@ -348,7 +348,7 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
     }
 }
 
-export async function createMapRenderer(config: MapRendererOptions): Promise<Deck<MapViewType[]>> {
+export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[]> {
     const { containerEl, points, app, settings, tagSettings, options } = config;
     containerEl.addClass('map-container');
 
@@ -356,7 +356,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
     const markerSize = options.markerSize || 100;
     const markerColor = options.markerColor || 'var(--color-accent)';
     const tileLayer = options.tileLayer || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
-    
+
     containerEl.empty();
     containerEl.style.setProperty('--bases-map-height', options.height || '100%');
 
@@ -365,6 +365,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
     const tooltip = containerEl.createEl('div', { cls: 'map-tooltip' });
 
     const numPoints = points.length;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const deckData: DeckDataPoint[] = new Array(numPoints);
 
     for (let i = 0; i < numPoints; i++) {
@@ -548,7 +549,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
                 // Only update if it's a different point
                 if (currentPoint !== info.object.point) {
                     currentPoint = info.object.point;
-                    updateTooltip(info.object.point, info.x, info.y);
+                    void updateTooltip(info.object.point, info.x, info.y);
                 } else {
                     tooltip.style.setProperty('--tooltip-x', `${info.x + 15}px`);
                     tooltip.style.setProperty('--tooltip-y', `${info.y - 30}px`);
@@ -576,6 +577,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
                     _offset: number;
                     tile: Tile2DHeader<HTMLImageElement>;
                 }) => {
+                    // eslint-disable-next-line @typescript-eslint/no-deprecated
                     const bbox = props.tile.bbox;
                     if (!('west' in bbox)) return null;
                     const { west, south, east, north } = bbox;

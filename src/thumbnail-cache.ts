@@ -14,7 +14,6 @@ export interface ThumbnailCacheMetadata {
 
 const THUMBNAIL_WIDTH = 300;
 const THUMBNAIL_HEIGHT = 200;
-const CACHE_DIR = '.obsidian/plugins/mapplus/.cache';
 
 export class ThumbnailCacheManager {
     private plugin: MapPlugin;
@@ -31,7 +30,7 @@ export class ThumbnailCacheManager {
             entries: {},
             pendingGeneration: []
         };
-        this.cacheDir = normalizePath(CACHE_DIR);
+        this.cacheDir = normalizePath(`${app.vault.configDir}/plugins/mapplus/.cache`);
     }
 
     async loadCache(): Promise<void> {
@@ -45,6 +44,7 @@ export class ThumbnailCacheManager {
 
             if (exists) {
                 const content = await this.app.vault.adapter.read(metadataPath);
+                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                 this.cache = JSON.parse(content);
             }
 

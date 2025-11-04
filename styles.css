@@ -142,6 +142,10 @@
 }
 
 .map-settings-container {
+    .setting-item-heading + .setting-item-description {
+        padding-top: 0px;
+        margin-top: 0px;
+    }
     .delete-btn {
         width: 24px;
         height: 24px;
