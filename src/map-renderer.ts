@@ -149,7 +149,7 @@ function getIconSVG(iconName: string, strokeWidth: number, fill: boolean): strin
                 return svgContent;
             }
         }
-    } catch (e) {
+    } catch {
         // Icon not available
     }
 
@@ -494,6 +494,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
                 } else if (Array.isArray(prop.value)) {
                     valueEl.textContent = prop.value.join(', ');
                 } else if (prop.value === null) {
+                    // eslint-disable-next-line obsidianmd/ui/sentence-case
                     valueEl.textContent = 'null';
                 } else if (typeof prop.value === 'boolean') {
                     valueEl.textContent = String(prop.value);

@@ -39,12 +39,15 @@ export class MapSettingTab extends PluginSettingTab {
         containerEl.empty();
         containerEl.classList.add('map-settings-container');
 
-        containerEl.createEl('h2', { text: 'Map' });
+        new Setting(containerEl)
+            .setName('Map')
+            .setHeading();
 
         new Setting(containerEl)
             .setName('Latitude key')
             .setDesc('Frontmatter key for latitude (default for all bases)')
             .addText(text => text
+                // eslint-disable-next-line obsidianmd/ui/sentence-case
                 .setPlaceholder('lat')
                 .setValue(this.plugin.settings.latKey)
                 .onChange(async (value) => {
@@ -59,6 +62,7 @@ export class MapSettingTab extends PluginSettingTab {
             .setName('Longitude key')
             .setDesc('Frontmatter key for longitude (default for all bases)')
             .addText(text => text
+                // eslint-disable-next-line obsidianmd/ui/sentence-case
                 .setPlaceholder('lng')
                 .setValue(this.plugin.settings.lngKey)
                 .onChange(async (value) => {
@@ -115,9 +119,11 @@ export class MapSettingTab extends PluginSettingTab {
                     await this.plugin.saveSettings();
                 }));
 
-        containerEl.createEl('h3', { text: 'Performance' });
+        new Setting(containerEl)
+            .setName('Performance')
+            .setHeading();
 
-        const thumbnailToggle = new Setting(containerEl)
+        new Setting(containerEl)
             .setName('Enable thumbnail cache')
             .setDesc('Cache thumbnails of location cover images - instant tooltips')
             .addToggle(toggle => toggle
@@ -139,6 +145,7 @@ export class MapSettingTab extends PluginSettingTab {
         if (this.plugin.settings.enableThumbnailCache) {
             new Setting(containerEl)
                 .setName('Thumbnail target size')
+                // eslint-disable-next-line obsidianmd/ui/sentence-case
                 .setDesc('Target file size for cached thumbnails (in KB)')
                 .addSlider(slider => slider
                     .setLimits(10, 50, 5)
@@ -150,7 +157,7 @@ export class MapSettingTab extends PluginSettingTab {
                     }));
 
             const stats = this.plugin.thumbnailCache.getCacheStats();
-            const sizeKB = (stats.totalSize / 1024).toFixed(1);
+            // const sizeKB = (stats.totalSize / 1024).toFixed(1);
             const isGenerating = this.plugin.thumbnailCache.isGenerating();
 
             const statusSetting = new Setting(containerEl)

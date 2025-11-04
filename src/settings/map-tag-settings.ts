@@ -133,7 +133,7 @@ function createTagCustomizationSetting(container: HTMLElement, tag: string, cust
         settingEl.removeClass('drag-over');
     });
 
-    settingEl.addEventListener('drop', async (e) => {
+    settingEl.addEventListener('drop', (e) => {
         e.preventDefault();
         settingEl.removeClass('drag-over');
 
@@ -144,8 +144,9 @@ function createTagCustomizationSetting(container: HTMLElement, tag: string, cust
             const draggedItem = plugin.tagSettings.tagPriority.splice(draggedIndex, 1)[0];
             plugin.tagSettings.tagPriority.splice(targetIndex, 0, draggedItem);
 
-            await plugin.saveTagSettings();
-            displayTagCustomizations(container, app, plugin);
+            void plugin.saveTagSettings().then(() => {
+                displayTagCustomizations(container, app, plugin);
+            });
         }
     });
 }
@@ -227,7 +228,7 @@ export class AddTagModal extends Modal {
 
         const iconPreview = iconContainer.createEl('div', { cls: 'icon-preview' });
 
-        const iconBtn = iconContainer.createEl('button', { text: 'Choose Icon', cls: 'icon-btn' });
+        const iconBtn = iconContainer.createEl('button', { text: 'Choose icon', cls: 'icon-btn' });
 
         iconBtn.onclick = () => {
             new IconPickerModal(this.app, this.selectedIcon, (icon) => {
@@ -269,7 +270,7 @@ class IconPickerModal extends Modal {
     onOpen() {
         const { contentEl } = this;
         contentEl.addClass('icon-picker-modal');
-        contentEl.createEl('h2', { text: 'Choose Icon' });
+        contentEl.createEl('h2', { text: 'Choose icon' });
 
         const searchContainer = contentEl.createDiv({ cls: 'search-container' });
         
@@ -303,7 +304,7 @@ class IconPickerModal extends Modal {
 
                 try {
                     setIcon(iconBtn, iconName);
-                } catch (e) {
+                } catch {
                     return;
                 }
 
@@ -324,7 +325,7 @@ class IconPickerModal extends Modal {
 
         const buttonContainer = contentEl.createDiv({ cls: 'button-container' });
 
-        const clearButton = buttonContainer.createEl('button', { text: 'Clear Icon' });
+        const clearButton = buttonContainer.createEl('button', { text: 'Clear icon' });
         clearButton.onclick = () => {
             this.onSubmit('');
             this.close();

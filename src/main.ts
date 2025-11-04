@@ -1,6 +1,6 @@
 import { Plugin } from 'obsidian';
 import { MapBasesView } from './views/map-bases-view';
-import { MapTagSettings, DEFAULT_MAP_TAG_SETTINGS } from './settings/map-tag-settings';
+import { MapTagSettings } from './settings/map-tag-settings';
 import { MapSettingTab, MapPluginSettings, DEFAULT_SETTINGS } from './settings/map-settings';
 import { ThumbnailCacheManager } from './thumbnail-cache';
 
@@ -21,7 +21,7 @@ export default class MapPlugin extends Plugin {
             await this.thumbnailCache.loadCache();
 
             setTimeout(() => {
-                this.thumbnailCache.generatePendingThumbnails();
+                void this.thumbnailCache.generatePendingThumbnails();
             }, 2000);
         }
 
@@ -29,7 +29,7 @@ export default class MapPlugin extends Plugin {
 			name: 'Map',
 			icon: 'lucide-map',
 			factory: (controller, containerEl) => new MapBasesView(controller, containerEl, this),
-			options: MapBasesView.getViewOptions,
+			options: () => MapBasesView.getViewOptions(),
 		});
 
         this.addSettingTab(new MapSettingTab(this.app, this));
@@ -51,6 +51,4 @@ export default class MapPlugin extends Plugin {
     refreshAllMapViews() {
         this.app.workspace.trigger('map:refresh-all-views');
     }
-
-    onunload() {}
 }
