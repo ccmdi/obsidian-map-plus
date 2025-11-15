@@ -376,14 +376,30 @@
     gap: 16px;
 }
 
+.timeline-input-container {
+    display: flex;
+    gap: 8px;
+}
+
 .timeline-date-input {
-    width: 100%;
+    flex: 1;
     padding: 6px 8px;
     border: 1px solid var(--background-modifier-border);
     border-radius: 4px;
     background: var(--background-secondary);
     color: var(--text-normal);
     font-size: 13px;
+}
+
+.timeline-granularity-select {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-secondary);
+    color: var(--text-normal);
+    font-size: 13px;
+    cursor: pointer;
 }
 
 .timeline-date-display {

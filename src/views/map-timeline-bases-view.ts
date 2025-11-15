@@ -19,6 +19,7 @@ interface TimelineEntry {
 }
 
 type UniquenessMode = 'most-recent' | 'least-recent' | 'all';
+type TimelineGranularity = 'daily' | 'monthly' | 'yearly';
 
 export class MapTimelineBasesView extends MapBasesView {
     type = MapTimelineBasesViewType;
@@ -28,6 +29,7 @@ export class MapTimelineBasesView extends MapBasesView {
     private dateProperty: BasesPropertyId | null = null;
     private uniquenessProperty: BasesPropertyId | null = null;
     private uniquenessMode: UniquenessMode = 'all';
+    private granularity: TimelineGranularity = 'daily';
     private dateRangeStart: number = 0;
     private dateRangeEnd: number = Date.now();
     private allTimelineEntries: TimelineEntry[] = [];
@@ -48,10 +50,27 @@ export class MapTimelineBasesView extends MapBasesView {
     private createSlider(): void {
         const sliderContainer = this.mapEl.createDiv({ cls: 'bases-timeline-slider' });
 
-        const dateInputEl = sliderContainer.createEl('input', {
+        const inputContainer = sliderContainer.createDiv({ cls: 'timeline-input-container' });
+
+        const dateInputEl = inputContainer.createEl('input', {
             type: 'text',
             cls: 'timeline-date-input',
-            placeholder: 'YYYY-MM-DD',
+        });
+
+        const granularitySelect = inputContainer.createEl('select', {
+            cls: 'timeline-granularity-select',
+        });
+
+        const dailyOption = granularitySelect.createEl('option', { value: 'daily', text: 'Daily' });
+        const monthlyOption = granularitySelect.createEl('option', { value: 'monthly', text: 'Monthly' });
+        const yearlyOption = granularitySelect.createEl('option', { value: 'yearly', text: 'Yearly' });
+
+        granularitySelect.value = this.granularity;
+
+        granularitySelect.addEventListener('change', () => {
+            this.granularity = granularitySelect.value as TimelineGranularity;
+            this.config.set('_granularity', this.granularity);
+            this.updateDateInput(dateInputEl);
         });
 
         dateInputEl.addEventListener('change', () => {
@@ -101,17 +120,40 @@ export class MapTimelineBasesView extends MapBasesView {
     }
 
     private parseDateInput(dateString: string): number | null {
-        const match = dateString.match(/^(-?\d+)-(\d{1,2})-(\d{1,2})$/);
-        if (!match) return null;
+        // Try full date format (YYYY-MM-DD)
+        let match = dateString.match(/^(-?\d+)-(\d{1,2})-(\d{1,2})$/);
+        if (match) {
+            const year = parseInt(match[1]);
+            const month = parseInt(match[2]);
+            const day = parseInt(match[3]);
 
-        const year = parseInt(match[1]);
-        const month = parseInt(match[2]);
-        const day = parseInt(match[3]);
+            if (month < 1 || month > 12 || day < 1 || day > 31) return null;
 
-        if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+            const date = new Date(year, month - 1, day);
+            return isNaN(date.getTime()) ? null : date.getTime();
+        }
 
-        const date = new Date(year, month - 1, day);
-        return isNaN(date.getTime()) ? null : date.getTime();
+        // Try year-month format (YYYY-MM)
+        match = dateString.match(/^(-?\d+)-(\d{1,2})$/);
+        if (match) {
+            const year = parseInt(match[1]);
+            const month = parseInt(match[2]);
+
+            if (month < 1 || month > 12) return null;
+
+            const date = new Date(year, month - 1, 1);
+            return isNaN(date.getTime()) ? null : date.getTime();
+        }
+
+        // Try year only format (YYYY)
+        match = dateString.match(/^(-?\d+)$/);
+        if (match) {
+            const year = parseInt(match[1]);
+            const date = new Date(year, 0, 1);
+            return isNaN(date.getTime()) ? null : date.getTime();
+        }
+
+        return null;
     }
 
     private padNumber(num: number, length: number): string {
@@ -128,7 +170,16 @@ export class MapTimelineBasesView extends MapBasesView {
         const month = this.padNumber(date.getMonth() + 1, 2);
         const day = this.padNumber(date.getDate(), 2);
 
-        dateInputEl.value = `${year}-${month}-${day}`;
+        if (this.granularity === 'yearly') {
+            dateInputEl.value = `${year}`;
+            dateInputEl.placeholder = 'YYYY';
+        } else if (this.granularity === 'monthly') {
+            dateInputEl.value = `${year}-${month}`;
+            dateInputEl.placeholder = 'YYYY-MM';
+        } else {
+            dateInputEl.value = `${year}-${month}-${day}`;
+            dateInputEl.placeholder = 'YYYY-MM-DD';
+        }
     }
 
 
@@ -168,6 +219,11 @@ export class MapTimelineBasesView extends MapBasesView {
         const modeVal = this.config.get('uniquenessMode');
         if (modeVal === 'most-recent' || modeVal === 'least-recent' || modeVal === 'all') {
             this.uniquenessMode = modeVal;
+        }
+
+        const savedGranularity = this.config.get('_granularity');
+        if (savedGranularity === 'daily' || savedGranularity === 'monthly' || savedGranularity === 'yearly') {
+            this.granularity = savedGranularity;
         }
 
         const savedDateRangeEnd = this.config.get('_dateRangeEnd');
