@@ -153,20 +153,29 @@ export class MapTimelineBasesView extends MapBasesView {
             return;
         }
 
-        const allPoints = this.extractPointsFromData();
-
         const entries: TimelineEntry[] = [];
         let minDate = Infinity;
         let maxDate = -Infinity;
 
-        for (let i = 0; i < this.data.data.length; i++) {
-            const entry = this.data.data[i];
-            const point = allPoints[i];
-
-            if (!point) continue;
+        for (const entry of this.data.data) {
+            const coordinates = this.extractCoordinates(entry);
+            if (!coordinates) continue;
 
             const dateValue = this.extractDateValue(entry);
             if (dateValue === null) continue;
+
+            const point: MapPoint = {
+                lat: coordinates[0],
+                lng: coordinates[1],
+                title: entry.file.basename,
+                file: entry.file,
+            };
+
+            const fileCache = this.app.metadataCache.getFileCache(entry.file);
+            if (fileCache?.frontmatter?.tags) {
+                const tags = fileCache.frontmatter.tags;
+                point.tags = Array.isArray(tags) ? tags : [tags];
+            }
 
             const uniqueId = this.extractUniqueId(entry);
 
@@ -194,8 +203,20 @@ export class MapTimelineBasesView extends MapBasesView {
         if (!this.dateProperty) return null;
 
         try {
-            const value = entry.getValue(this.dateProperty);
+            let value = entry.getValue(this.dateProperty);
             if (!value) return null;
+
+            if (typeof value === 'object' && value !== null && 'date' in value) {
+                value = value.date;
+            }
+
+            if (value instanceof Date) {
+                return value.getTime();
+            }
+
+            if (typeof value === 'number') {
+                return value;
+            }
 
             const stringValue = value.toString();
             const date = new Date(stringValue);
