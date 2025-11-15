@@ -4,11 +4,10 @@ import {
     QueryController,
     ViewOption,
 } from 'obsidian';
-import { Deck } from '@deck.gl/core';
-import { MapView as MapViewType } from '@deck.gl/core';
 import { MapPoint } from '../map-renderer';
 import MapPlugin from '../main';
 import { MapBasesView } from './map-bases-view';
+import { updateMapPoints } from '../map-renderer';
 
 export const MapTimelineBasesViewType = 'map-timeline';
 
@@ -40,7 +39,6 @@ export class MapTimelineBasesView extends MapBasesView {
 
     onload(): void {
         super.onload();
-        this.createSlider();
     }
 
     onunload() {
@@ -49,7 +47,22 @@ export class MapTimelineBasesView extends MapBasesView {
     }
 
     private createSlider(): void {
-        const sliderContainer = this.containerEl.createDiv({ cls: 'bases-timeline-slider' });
+        const sliderContainer = this.mapEl.createDiv({ cls: 'bases-timeline-slider' });
+
+        const dateInputEl = sliderContainer.createEl('input', {
+            type: 'date',
+            cls: 'timeline-date-input',
+        });
+
+        dateInputEl.addEventListener('change', () => {
+            const selectedDate = new Date(dateInputEl.value);
+            if (!isNaN(selectedDate.getTime())) {
+                this.dateRangeEnd = selectedDate.getTime();
+                this.updateSliderFromDate();
+                this.updateDateDisplay();
+                this.applyTimelineFilter();
+            }
+        });
 
         this.dateDisplayEl = sliderContainer.createDiv({ cls: 'timeline-date-display' });
         this.dateDisplayEl.textContent = this.getDateText();
@@ -65,8 +78,34 @@ export class MapTimelineBasesView extends MapBasesView {
         this.sliderEl.addEventListener('input', () => {
             this.updateDateRange();
             this.updateDateDisplay();
+            this.updateDateInput(dateInputEl);
             this.applyTimelineFilter();
         });
+
+        this.updateDateInput(dateInputEl);
+    }
+
+    private updateSliderFromDate(): void {
+        if (!this.sliderEl || this.allTimelineEntries.length === 0) return;
+
+        const minDate = Math.min(...this.allTimelineEntries.map(e => e.date));
+        const maxDate = Math.max(...this.allTimelineEntries.map(e => e.date));
+        const range = maxDate - minDate;
+
+        if (range === 0) {
+            this.sliderEl.value = '100';
+        } else {
+            const percentage = ((this.dateRangeEnd - minDate) / range) * 100;
+            this.sliderEl.value = Math.min(100, Math.max(0, percentage)).toString();
+        }
+    }
+
+    private updateDateInput(dateInputEl: HTMLInputElement): void {
+        const date = new Date(this.dateRangeEnd);
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        dateInputEl.value = `${year}-${month}-${day}`;
     }
 
     private getDateText(): string {
@@ -96,22 +135,24 @@ export class MapTimelineBasesView extends MapBasesView {
 
         if (this.dateProperty) {
             this.updateTimelineData();
-            // Don't call super - we'll handle rendering ourselves
+
             if (this.deck) {
                 this.applyTimelineFilter();
             } else {
-                // First render - need to call parent's loadConfig and renderMap
-                super['loadConfig']();
-                super['renderMap']();
+                super.loadConfig();
+                super.renderMap();
+
+                this.createSlider();
                 this.applyTimelineFilter();
             }
         } else {
-            // No date property set, just render normally
             super.onDataUpdated();
         }
     }
 
-    private loadConfig(): void {
+    protected loadConfig(): void {
+        super.loadConfig();
+
         this.dateProperty = this.config.getAsPropertyId('dateProperty');
         this.uniquenessProperty = this.config.getAsPropertyId('uniquenessProperty');
 
@@ -178,7 +219,6 @@ export class MapTimelineBasesView extends MapBasesView {
             const date = new Date(stringValue);
 
             if (isNaN(date.getTime())) {
-                // Try parsing as timestamp
                 const timestamp = parseInt(stringValue);
                 if (!isNaN(timestamp)) {
                     return timestamp;
@@ -227,12 +267,10 @@ export class MapTimelineBasesView extends MapBasesView {
             return;
         }
 
-        // Filter by date range
         let filteredEntries = this.allTimelineEntries.filter(
             entry => entry.date >= this.dateRangeStart && entry.date <= this.dateRangeEnd
         );
 
-        // Apply uniqueness constraint
         if (this.uniquenessProperty && this.uniquenessMode !== 'all') {
             const grouped = new Map<string, TimelineEntry[]>();
 
@@ -248,10 +286,8 @@ export class MapTimelineBasesView extends MapBasesView {
             for (const group of grouped.values()) {
                 if (group.length === 0) continue;
 
-                // Sort by date
                 group.sort((a, b) => a.date - b.date);
 
-                // Pick based on mode
                 if (this.uniquenessMode === 'most-recent') {
                     filteredEntries.push(group[group.length - 1]);
                 } else if (this.uniquenessMode === 'least-recent') {
@@ -260,16 +296,11 @@ export class MapTimelineBasesView extends MapBasesView {
             }
         }
 
-        // Update the view with filtered points
         this.updateMapWithFilteredPoints(filteredEntries.map(e => e.point));
     }
 
     private updateMapWithFilteredPoints(points: MapPoint[]): void {
         if (!this.deck || !this.data) return;
-
-        // Directly update using updateMapPoints
-        const { updateMapPoints } = require('../map-renderer');
-
         const hasConfiguredCenter = this.center[0] !== 0 || this.center[1] !== 0;
 
         updateMapPoints(this.deck, points, {
