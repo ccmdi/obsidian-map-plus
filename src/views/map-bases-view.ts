@@ -26,16 +26,16 @@ export class MapBasesView extends BasesView {
     mapEl: HTMLElement;
     plugin: MapPlugin;
 
-    private deck: Deck<MapViewType[]> | null = null;
-    private coordinatesProp: BasesPropertyId | null = null;
-    private coverProp: BasesPropertyId | null = null;
+    protected deck: Deck<MapViewType[]> | null = null;
+    protected coordinatesProp: BasesPropertyId | null = null;
+    protected coverProp: BasesPropertyId | null = null;
     private mapHeight: number = DEFAULT_MAP_HEIGHT;
-    private defaultZoom: number = DEFAULT_MAP_ZOOM;
-    private center: [number, number] = [0, 0];
-    private markerType: 'pins' | 'dots' = 'pins';
+    protected defaultZoom: number = DEFAULT_MAP_ZOOM;
+    protected center: [number, number] = [0, 0];
+    protected markerType: 'pins' | 'dots' = 'pins';
     private tileLayer: string = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
     private savedViewState: { latitude: number; longitude: number; zoom: number } | null = null;
-    private lastPoints: MapPoint[] = [];
+    protected lastPoints: MapPoint[] = [];
 
     constructor(controller: QueryController, scrollEl: HTMLElement, plugin: MapPlugin) {
         super(controller);
@@ -102,7 +102,7 @@ export class MapBasesView extends BasesView {
         }
     }
 
-    private loadConfig(): void {
+    protected loadConfig(): void {
         this.coordinatesProp = this.config.getAsPropertyId('coordinates');
         this.coverProp = this.config.getAsPropertyId('coverImage');
 
@@ -147,7 +147,7 @@ export class MapBasesView extends BasesView {
         }
     }
 
-    private renderMap(): void {
+    protected renderMap(): void {
         if (!this.data) {
             this.containerEl.removeClass('is-loading');
             return;
@@ -296,7 +296,7 @@ export class MapBasesView extends BasesView {
         });
     }
 
-    private extractPointsFromData(): MapPoint[] {
+    protected extractPointsFromData(): MapPoint[] {
         if (!this.data) return [];
 
         const points: MapPoint[] = [];
@@ -358,7 +358,7 @@ export class MapBasesView extends BasesView {
         return points;
     }
 
-    private extractCoordinates(entry: BasesEntry): [number, number] | null {
+    protected extractCoordinates(entry: BasesEntry): [number, number] | null {
         if (this.coordinatesProp) {
             try {
                 const value = entry.getValue(this.coordinatesProp);

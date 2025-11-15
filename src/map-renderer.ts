@@ -532,8 +532,12 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
             scrollZoom: { speed: 0.02, smooth: true },
             touchRotate: false,
             keyboard: false,
+            dragRotate: false,
         },
-        views: [new MapViewType({ repeat: true })],
+        views: [new MapViewType({
+            repeat: true,
+            orthographic: true,
+        })],
         onAfterRender: () => {
             if (options.onTilesLoaded && !tilesLoadedCalled) {
                 tilesLoadedCalled = true;

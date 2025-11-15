@@ -12,6 +12,7 @@ export interface MapPluginSettings {
     enableThumbnailCache: boolean;
     thumbnailTargetSize: number;
     tagSettings: MapTagSettings;
+    enableTimelineView: boolean;
 }
 
 export const DEFAULT_SETTINGS: MapPluginSettings = {
@@ -23,7 +24,8 @@ export const DEFAULT_SETTINGS: MapPluginSettings = {
     transitionDuration: 1000,
     enableThumbnailCache: false,
     thumbnailTargetSize: 25,
-    tagSettings: DEFAULT_MAP_TAG_SETTINGS
+    tagSettings: DEFAULT_MAP_TAG_SETTINGS,
+    enableTimelineView: false
 };
 
 export class MapSettingTab extends PluginSettingTab {
@@ -223,5 +225,23 @@ export class MapSettingTab extends PluginSettingTab {
         }
 
         renderTagCustomizations(containerEl, this.app, this.plugin);
+
+        new Setting(containerEl)
+            .setName('Views')
+            .setHeading();
+
+        new Setting(containerEl)
+            .setName('Enable map timeline view')
+            .setDesc('Enable the map timeline view for filtering by date range (disable requires restart)')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableTimelineView)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableTimelineView = value;
+                    await this.plugin.saveSettings();
+
+                    if (value) {
+                        this.plugin.registerTimelineView();
+                    }
+                }));
     }
 }
