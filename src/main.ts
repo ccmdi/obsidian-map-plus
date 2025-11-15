@@ -33,12 +33,9 @@ export default class MapPlugin extends Plugin {
 			options: () => MapBasesView.getViewOptions(),
 		});
 
-        this.registerBasesView('map-timeline', {
-			name: 'Map Timeline',
-			icon: 'lucide-calendar',
-			factory: (controller, containerEl) => new MapTimelineBasesView(controller, containerEl, this),
-			options: () => MapTimelineBasesView.getViewOptions(),
-		});
+        if (this.settings.enableTimelineView) {
+			this.registerTimelineView();
+		}
 
         this.addSettingTab(new MapSettingTab(this.app, this));
     }
@@ -59,5 +56,14 @@ export default class MapPlugin extends Plugin {
 
     refreshAllMapViews() {
         this.app.workspace.trigger('map:refresh-all-views');
+    }
+
+    registerTimelineView() {
+        this.registerBasesView('map-timeline', {
+			name: 'Map timeline',
+			icon: 'lucide-calendar',
+			factory: (controller, containerEl) => new MapTimelineBasesView(controller, containerEl, this),
+			options: () => MapTimelineBasesView.getViewOptions(),
+		});
     }
 }
