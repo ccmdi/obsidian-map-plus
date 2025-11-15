@@ -168,25 +168,22 @@ export class MapTimelineBasesView extends MapBasesView {
             return;
         }
 
+        const allPoints = this.extractPointsFromData();
+
         const entries: TimelineEntry[] = [];
         let minDate = Infinity;
         let maxDate = -Infinity;
 
-        for (const entry of this.data.data) {
-            const coordinates = this.extractCoordinates(entry);
-            if (!coordinates) continue;
+        for (let i = 0; i < this.data.data.length; i++) {
+            const entry = this.data.data[i];
+            const point = allPoints[i];
+
+            if (!point) continue;
 
             const dateValue = this.extractDateValue(entry);
             if (dateValue === null) continue;
 
             const uniqueId = this.extractUniqueId(entry);
-
-            const point: MapPoint = {
-                lat: coordinates[0],
-                lng: coordinates[1],
-                title: entry.file.basename,
-                file: entry.file,
-            };
 
             entries.push({
                 entry,

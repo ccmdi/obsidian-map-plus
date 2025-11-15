@@ -27,8 +27,8 @@ export class MapBasesView extends BasesView {
     plugin: MapPlugin;
 
     protected deck: Deck<MapViewType[]> | null = null;
-    private coordinatesProp: BasesPropertyId | null = null;
-    private coverProp: BasesPropertyId | null = null;
+    protected coordinatesProp: BasesPropertyId | null = null;
+    protected coverProp: BasesPropertyId | null = null;
     private mapHeight: number = DEFAULT_MAP_HEIGHT;
     protected defaultZoom: number = DEFAULT_MAP_ZOOM;
     protected center: [number, number] = [0, 0];
@@ -296,7 +296,7 @@ export class MapBasesView extends BasesView {
         });
     }
 
-    private extractPointsFromData(): MapPoint[] {
+    protected extractPointsFromData(): MapPoint[] {
         if (!this.data) return [];
 
         const points: MapPoint[] = [];
