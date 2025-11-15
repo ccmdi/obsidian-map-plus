@@ -24,7 +24,6 @@ export class MapTimelineBasesView extends MapBasesView {
     type = MapTimelineBasesViewType;
 
     private sliderEl: HTMLInputElement | null = null;
-    private dateDisplayEl: HTMLElement | null = null;
 
     private dateProperty: BasesPropertyId | null = null;
     private uniquenessProperty: BasesPropertyId | null = null;
@@ -55,17 +54,15 @@ export class MapTimelineBasesView extends MapBasesView {
         });
 
         dateInputEl.addEventListener('change', () => {
+            if (!dateInputEl.value) return;
+
             const selectedDate = new Date(dateInputEl.value);
             if (!isNaN(selectedDate.getTime())) {
                 this.dateRangeEnd = selectedDate.getTime();
                 this.updateSliderFromDate();
-                this.updateDateDisplay();
                 this.applyTimelineFilter();
             }
         });
-
-        this.dateDisplayEl = sliderContainer.createDiv({ cls: 'timeline-date-display' });
-        this.dateDisplayEl.textContent = this.getDateText();
 
         this.sliderEl = sliderContainer.createEl('input', {
             type: 'range',
@@ -77,7 +74,6 @@ export class MapTimelineBasesView extends MapBasesView {
 
         this.sliderEl.addEventListener('input', () => {
             this.updateDateRange();
-            this.updateDateDisplay();
             this.updateDateInput(dateInputEl);
             this.applyTimelineFilter();
         });
@@ -102,26 +98,15 @@ export class MapTimelineBasesView extends MapBasesView {
 
     private updateDateInput(dateInputEl: HTMLInputElement): void {
         const date = new Date(this.dateRangeEnd);
+
+        if (isNaN(date.getTime())) return;
+
         const year = date.getFullYear();
         const month = String(date.getMonth() + 1).padStart(2, '0');
         const day = String(date.getDate()).padStart(2, '0');
         dateInputEl.value = `${year}-${month}-${day}`;
     }
 
-    private getDateText(): string {
-        const endDate = new Date(this.dateRangeEnd);
-        return endDate.toLocaleDateString(undefined, {
-            year: 'numeric',
-            month: 'short',
-            day: 'numeric',
-        });
-    }
-
-    private updateDateDisplay(): void {
-        if (this.dateDisplayEl) {
-            this.dateDisplayEl.textContent = this.getDateText();
-        }
-    }
 
     private destroySlider(): void {
         if (this.sliderEl) {
@@ -261,6 +246,8 @@ export class MapTimelineBasesView extends MapBasesView {
 
     private applyTimelineFilter(): void {
         if (this.allTimelineEntries.length === 0) {
+            // No entries at all, clear the map
+            this.updateMapWithFilteredPoints([]);
             return;
         }
 
@@ -293,6 +280,7 @@ export class MapTimelineBasesView extends MapBasesView {
             }
         }
 
+        // Always update, even if empty (to clear markers when no results)
         this.updateMapWithFilteredPoints(filteredEntries.map(e => e.point));
     }
 
@@ -339,7 +327,7 @@ export class MapTimelineBasesView extends MapBasesView {
                         placeholder: 'None',
                     },
                     {
-                        displayName: 'Uniqueness mode',
+                        displayName: 'Grouping uniqueness mode',
                         type: 'dropdown',
                         key: 'uniquenessMode',
                         options: {
