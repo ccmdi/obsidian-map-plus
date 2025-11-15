@@ -237,11 +237,12 @@ export class MapTimelineBasesView extends MapBasesView {
         if (!this.dateProperty) return null;
 
         try {
-            let value = entry.getValue(this.dateProperty);
+            let value: unknown = entry.getValue(this.dateProperty);
             if (!value) return null;
 
             if (typeof value === 'object' && value !== null && 'date' in value) {
-                value = value.date;
+                value = (value as { date?: unknown }).date;
+                if (!value) return null;
             }
 
             if (value instanceof Date) {
@@ -252,7 +253,7 @@ export class MapTimelineBasesView extends MapBasesView {
                 return value;
             }
 
-            const stringValue = value.toString().trim();
+            const stringValue = String(value).trim();
 
             // Try timestamp first
             if (/^-?\d+$/.test(stringValue)) {
