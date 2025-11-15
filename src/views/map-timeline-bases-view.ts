@@ -49,16 +49,17 @@ export class MapTimelineBasesView extends MapBasesView {
         const sliderContainer = this.mapEl.createDiv({ cls: 'bases-timeline-slider' });
 
         const dateInputEl = sliderContainer.createEl('input', {
-            type: 'date',
+            type: 'text',
             cls: 'timeline-date-input',
+            placeholder: 'YYYY-MM-DD',
         });
 
         dateInputEl.addEventListener('change', () => {
             if (!dateInputEl.value) return;
 
-            const selectedDate = new Date(dateInputEl.value);
-            if (!isNaN(selectedDate.getTime())) {
-                this.dateRangeEnd = selectedDate.getTime();
+            const timestamp = this.parseDateInput(dateInputEl.value);
+            if (timestamp !== null) {
+                this.dateRangeEnd = timestamp;
                 this.updateSliderFromDate();
                 this.applyTimelineFilter();
             }
@@ -96,14 +97,34 @@ export class MapTimelineBasesView extends MapBasesView {
         }
     }
 
+    private parseDateInput(dateString: string): number | null {
+        const match = dateString.match(/^(-?\d+)-(\d{1,2})-(\d{1,2})$/);
+        if (!match) return null;
+
+        const year = parseInt(match[1]);
+        const month = parseInt(match[2]);
+        const day = parseInt(match[3]);
+
+        if (month < 1 || month > 12 || day < 1 || day > 31) return null;
+
+        const date = new Date(year, month - 1, day);
+        return isNaN(date.getTime()) ? null : date.getTime();
+    }
+
+    private padNumber(num: number, length: number): string {
+        const str = String(num);
+        return str.length >= length ? str : '0'.repeat(length - str.length) + str;
+    }
+
     private updateDateInput(dateInputEl: HTMLInputElement): void {
         const date = new Date(this.dateRangeEnd);
 
         if (isNaN(date.getTime())) return;
 
         const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
+        const month = this.padNumber(date.getMonth() + 1, 2);
+        const day = this.padNumber(date.getDate(), 2);
+
         dateInputEl.value = `${year}-${month}-${day}`;
     }
 
@@ -218,18 +239,25 @@ export class MapTimelineBasesView extends MapBasesView {
                 return value;
             }
 
-            const stringValue = value.toString();
-            const date = new Date(stringValue);
+            const stringValue = value.toString().trim();
 
-            if (isNaN(date.getTime())) {
+            // Try timestamp first
+            if (/^-?\d+$/.test(stringValue)) {
                 const timestamp = parseInt(stringValue);
                 if (!isNaN(timestamp)) {
                     return timestamp;
                 }
-                return null;
             }
 
-            return date.getTime();
+            // Try custom date format (supports BC dates)
+            const parsed = this.parseDateInput(stringValue);
+            if (parsed !== null) {
+                return parsed;
+            }
+
+            // Fallback to standard Date parsing
+            const date = new Date(stringValue);
+            return isNaN(date.getTime()) ? null : date.getTime();
         } catch {
             return null;
         }
