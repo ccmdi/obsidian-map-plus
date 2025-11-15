@@ -1,5 +1,6 @@
 import { Plugin } from 'obsidian';
 import { MapBasesView } from './views/map-bases-view';
+import { MapTimelineBasesView } from './views/map-timeline-bases-view';
 import { MapTagSettings } from './settings/map-tag-settings';
 import { MapSettingTab, MapPluginSettings, DEFAULT_SETTINGS } from './settings/map-settings';
 import { ThumbnailCacheManager } from './thumbnail-cache';
@@ -30,6 +31,13 @@ export default class MapPlugin extends Plugin {
 			icon: 'lucide-map',
 			factory: (controller, containerEl) => new MapBasesView(controller, containerEl, this),
 			options: () => MapBasesView.getViewOptions(),
+		});
+
+        this.registerBasesView('map-timeline', {
+			name: 'Map Timeline',
+			icon: 'lucide-calendar',
+			factory: (controller, containerEl) => new MapTimelineBasesView(controller, containerEl, this),
+			options: () => MapTimelineBasesView.getViewOptions(),
 		});
 
         this.addSettingTab(new MapSettingTab(this.app, this));
