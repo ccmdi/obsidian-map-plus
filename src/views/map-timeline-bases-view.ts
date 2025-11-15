@@ -60,6 +60,7 @@ export class MapTimelineBasesView extends MapBasesView {
             const timestamp = this.parseDateInput(dateInputEl.value);
             if (timestamp !== null) {
                 this.dateRangeEnd = timestamp;
+                this.config.set('_dateRangeEnd', timestamp);
                 this.updateSliderFromDate();
                 this.applyTimelineFilter();
             }
@@ -75,11 +76,13 @@ export class MapTimelineBasesView extends MapBasesView {
 
         this.sliderEl.addEventListener('input', () => {
             this.updateDateRange();
+            this.config.set('_dateRangeEnd', this.dateRangeEnd);
             this.updateDateInput(dateInputEl);
             this.applyTimelineFilter();
         });
 
         this.updateDateInput(dateInputEl);
+        this.updateSliderFromDate();
     }
 
     private updateSliderFromDate(): void {
@@ -166,6 +169,11 @@ export class MapTimelineBasesView extends MapBasesView {
         if (modeVal === 'most-recent' || modeVal === 'least-recent' || modeVal === 'all') {
             this.uniquenessMode = modeVal;
         }
+
+        const savedDateRangeEnd = this.config.get('_dateRangeEnd');
+        if (savedDateRangeEnd && typeof savedDateRangeEnd === 'number') {
+            this.dateRangeEnd = savedDateRangeEnd;
+        }
     }
 
     private updateTimelineData(): void {
@@ -213,10 +221,15 @@ export class MapTimelineBasesView extends MapBasesView {
 
         this.allTimelineEntries = entries;
         this.dateRangeStart = minDate === Infinity ? 0 : minDate;
-        this.dateRangeEnd = maxDate === -Infinity ? Date.now() : maxDate;
+
+        // Only reset dateRangeEnd if not already set from config
+        const savedDateRangeEnd = this.config.get('_dateRangeEnd');
+        if (!savedDateRangeEnd || typeof savedDateRangeEnd !== 'number') {
+            this.dateRangeEnd = maxDate === -Infinity ? Date.now() : maxDate;
+        }
 
         if (this.sliderEl) {
-            this.sliderEl.value = '100';
+            this.updateSliderFromDate();
         }
     }
 
