@@ -129,8 +129,12 @@ export class MapTimelineBasesView extends MapBasesView {
 
             if (month < 1 || month > 12 || day < 1 || day > 31) return null;
 
-            const date = new Date(year, month - 1, day);
-            return isNaN(date.getTime()) ? null : date.getTime();
+            const date = new Date(0);
+            date.setFullYear(year);
+            date.setMonth(month - 1);
+            date.setDate(day);
+            date.setHours(0, 0, 0, 0);
+            return date.getTime();
         }
 
         // Try year-month format (YYYY-MM)
@@ -141,16 +145,24 @@ export class MapTimelineBasesView extends MapBasesView {
 
             if (month < 1 || month > 12) return null;
 
-            const date = new Date(year, month - 1, 1);
-            return isNaN(date.getTime()) ? null : date.getTime();
+            const date = new Date(0);
+            date.setFullYear(year);
+            date.setMonth(month - 1);
+            date.setDate(1);
+            date.setHours(0, 0, 0, 0);
+            return date.getTime();
         }
 
         // Try year only format (YYYY)
         match = dateString.match(/^(-?\d+)$/);
         if (match) {
             const year = parseInt(match[1]);
-            const date = new Date(year, 0, 1);
-            return isNaN(date.getTime()) ? null : date.getTime();
+            const date = new Date(0);
+            date.setFullYear(year);
+            date.setMonth(0);
+            date.setDate(1);
+            date.setHours(0, 0, 0, 0);
+            return date.getTime();
         }
 
         return null;
