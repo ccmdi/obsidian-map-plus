@@ -302,12 +302,7 @@ export class MapTimelineBasesView extends MapBasesView {
                 return value;
             }
 
-            // if not a string at this point, it is not valid
-            if (typeof value !== 'string') {
-                return null;
-            }
-
-            const stringValue = value.trim();
+            const stringValue = String(value).trim();
 
             if (/^-?\d+$/.test(stringValue)) {
                 const timestamp = parseInt(stringValue);
