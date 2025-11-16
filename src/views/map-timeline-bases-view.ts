@@ -274,6 +274,40 @@ export class MapTimelineBasesView extends MapBasesView {
                 point.tags = Array.isArray(tags) ? tags : [tags];
             }
 
+            if (this.coverProp) {
+                const coverVal = entry.getValue(this.coverProp);
+                if (coverVal) {
+                    point.cover = coverVal.toString();
+
+                    if (this.plugin.settings.enableThumbnailCache) {
+                        void this.plugin.thumbnailCache.markForGeneration(point.cover, entry.file);
+                    }
+                }
+            }
+
+            const properties: Array<{ name: string; value: string }> = [];
+            if (this.data.properties) {
+                for (const prop of this.data.properties.slice(0, 20)) {
+                    if (prop === this.coordinatesProp) continue;
+
+                    try {
+                        const value = entry.getValue(prop);
+                        if (value && value.isTruthy()) {
+                            properties.push({
+                                name: this.config.getDisplayName(prop),
+                                value: value.toString()
+                            });
+                        }
+                    } catch {
+                        // Property value not available
+                    }
+                }
+            }
+
+            if (properties.length > 0) {
+                point.properties = properties;
+            }
+
             const uniqueId = this.extractUniqueId(entry);
 
             entries.push({
