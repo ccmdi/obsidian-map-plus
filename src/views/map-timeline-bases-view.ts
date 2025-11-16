@@ -59,9 +59,9 @@ export class MapTimelineBasesView extends MapBasesView {
             cls: 'timeline-granularity-select',
         });
 
-        const dailyOption = granularitySelect.createEl('option', { value: 'daily', text: 'Daily' });
-        const monthlyOption = granularitySelect.createEl('option', { value: 'monthly', text: 'Monthly' });
-        const yearlyOption = granularitySelect.createEl('option', { value: 'yearly', text: 'Yearly' });
+        granularitySelect.createEl('option', { value: 'daily', text: 'Daily' });
+        granularitySelect.createEl('option', { value: 'monthly', text: 'Monthly' });
+        granularitySelect.createEl('option', { value: 'yearly', text: 'Yearly' });
 
         granularitySelect.value = this.granularity;
 
@@ -185,9 +185,11 @@ export class MapTimelineBasesView extends MapBasesView {
             dateInputEl.placeholder = 'YYYY';
         } else if (this.granularity === 'monthly') {
             dateInputEl.value = `${year}-${month}`;
+            // eslint-disable-next-line obsidianmd/ui/sentence-case
             dateInputEl.placeholder = 'YYYY-MM';
         } else {
             dateInputEl.value = `${year}-${month}-${day}`;
+            // eslint-disable-next-line obsidianmd/ui/sentence-case
             dateInputEl.placeholder = 'YYYY-MM-DD';
         }
     }
@@ -283,23 +285,30 @@ export class MapTimelineBasesView extends MapBasesView {
         try {
             let value: unknown = entry.getValue(this.dateProperty);
             if (!value) return null;
-
+            
+            // date property
             if (typeof value === 'object' && value !== null && 'date' in value) {
                 value = (value as { date?: unknown }).date;
                 if (!value) return null;
             }
 
+            // date obj
             if (value instanceof Date) {
                 return value.getTime();
             }
-
+            
+            // timestamps
             if (typeof value === 'number') {
                 return value;
             }
 
-            const stringValue = String(value).trim();
+            // if not a string at this point, it is not valid
+            if (typeof value !== 'string') {
+                return null;
+            }
 
-            // Try timestamp first
+            const stringValue = value.trim();
+
             if (/^-?\d+$/.test(stringValue)) {
                 const timestamp = parseInt(stringValue);
                 if (!isNaN(timestamp)) {
@@ -307,13 +316,12 @@ export class MapTimelineBasesView extends MapBasesView {
                 }
             }
 
-            // Try custom date format (supports BC dates)
+            // custom date format
             const parsed = this.parseDateInput(stringValue);
             if (parsed !== null) {
                 return parsed;
             }
 
-            // Fallback to standard Date parsing
             const date = new Date(stringValue);
             return isNaN(date.getTime()) ? null : date.getTime();
         } catch {
