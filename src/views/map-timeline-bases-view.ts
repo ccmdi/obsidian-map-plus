@@ -11,9 +11,7 @@ import { updateMapPoints } from '../map-renderer';
 
 export const MapTimelineBasesViewType = 'map-timeline';
 
-interface TimelineEntry {
-    entry: BasesEntry;
-    point: MapPoint;
+interface TimelineMapPoint extends MapPoint {
     date: number;
     uniqueId: string;
 }
@@ -32,7 +30,7 @@ export class MapTimelineBasesView extends MapBasesView {
     private granularity: TimelineGranularity = 'daily';
     private dateRangeStart: number = 0;
     private dateRangeEnd: number = Date.now();
-    private allTimelineEntries: TimelineEntry[] = [];
+    private allTimelineEntries: TimelineMapPoint[] = [];
 
     constructor(controller: QueryController, scrollEl: HTMLElement, plugin: MapPlugin) {
         super(controller, scrollEl, plugin);
@@ -250,81 +248,25 @@ export class MapTimelineBasesView extends MapBasesView {
             return;
         }
 
-        const entries: TimelineEntry[] = [];
         let minDate = Infinity;
         let maxDate = -Infinity;
 
-        for (const entry of this.data.data) {
-            const coordinates = this.extractCoordinates(entry);
-            if (!coordinates) continue;
-
+        const points = this.extractPointsFromData((entry): Partial<TimelineMapPoint> => {
             const dateValue = this.extractDateValue(entry);
-            if (dateValue === null) continue;
-
-            const point: MapPoint = {
-                lat: coordinates[0],
-                lng: coordinates[1],
-                title: entry.file.basename,
-                file: entry.file,
-            };
-
-            const fileCache = this.app.metadataCache.getFileCache(entry.file);
-            if (fileCache?.frontmatter?.tags) {
-                const tags = fileCache.frontmatter.tags;
-                point.tags = Array.isArray(tags) ? tags : [tags];
-            }
-
-            if (this.coverProp) {
-                const coverVal = entry.getValue(this.coverProp);
-                if (coverVal) {
-                    point.cover = coverVal.toString();
-
-                    if (this.plugin.settings.enableThumbnailCache) {
-                        void this.plugin.thumbnailCache.markForGeneration(point.cover, entry.file);
-                    }
-                }
-            }
-
-            const properties: Array<{ name: string; value: string }> = [];
-            if (this.data.properties) {
-                for (const prop of this.data.properties.slice(0, 20)) {
-                    if (prop === this.coordinatesProp) continue;
-
-                    try {
-                        const value = entry.getValue(prop);
-                        if (value && value.isTruthy()) {
-                            properties.push({
-                                name: this.config.getDisplayName(prop),
-                                value: value.toString()
-                            });
-                        }
-                    } catch {
-                        // Property value not available
-                    }
-                }
-            }
-
-            if (properties.length > 0) {
-                point.properties = properties;
-            }
+            if (dateValue === null) return {};
 
             const uniqueId = this.extractUniqueId(entry);
 
-            entries.push({
-                entry,
-                point,
-                date: dateValue,
-                uniqueId,
-            });
-
             minDate = Math.min(minDate, dateValue);
             maxDate = Math.max(maxDate, dateValue);
-        }
 
-        this.allTimelineEntries = entries;
+            return { date: dateValue, uniqueId };
+        }) as TimelineMapPoint[];
+
+        this.allTimelineEntries = points.filter(p => p.date !== undefined);
+
         this.dateRangeStart = minDate === Infinity ? 0 : minDate;
 
-        // Only reset dateRangeEnd if not already set from config
         const savedDateRangeEnd = this.config.get('_dateRangeEnd');
         if (!savedDateRangeEnd || typeof savedDateRangeEnd !== 'number') {
             this.dateRangeEnd = maxDate === -Infinity ? Date.now() : maxDate;
@@ -416,37 +358,37 @@ export class MapTimelineBasesView extends MapBasesView {
             return;
         }
 
-        let filteredEntries = this.allTimelineEntries.filter(
-            entry => entry.date >= this.dateRangeStart && entry.date <= this.dateRangeEnd
+        let filteredPoints = this.allTimelineEntries.filter(
+            point => point.date >= this.dateRangeStart && point.date <= this.dateRangeEnd
         );
 
         if (this.uniquenessProperty && this.uniquenessMode !== 'all') {
-            const grouped = new Map<string, TimelineEntry[]>();
+            const grouped = new Map<string, TimelineMapPoint[]>();
 
-            for (const entry of filteredEntries) {
-                const id = entry.uniqueId;
+            for (const point of filteredPoints) {
+                const id = point.uniqueId;
                 if (!grouped.has(id)) {
                     grouped.set(id, []);
                 }
-                grouped.get(id)!.push(entry);
+                grouped.get(id)!.push(point);
             }
 
-            filteredEntries = [];
+            filteredPoints = [];
             for (const group of grouped.values()) {
                 if (group.length === 0) continue;
 
                 group.sort((a, b) => a.date - b.date);
 
                 if (this.uniquenessMode === 'most-recent') {
-                    filteredEntries.push(group[group.length - 1]);
+                    filteredPoints.push(group[group.length - 1]);
                 } else if (this.uniquenessMode === 'least-recent') {
-                    filteredEntries.push(group[0]);
+                    filteredPoints.push(group[0]);
                 }
             }
         }
 
         // Always update, even if empty (to clear markers when no results)
-        this.updateMapWithFilteredPoints(filteredEntries.map(e => e.point));
+        this.updateMapWithFilteredPoints(filteredPoints);
     }
 
     private updateMapWithFilteredPoints(points: MapPoint[]): void {

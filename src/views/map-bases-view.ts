@@ -296,7 +296,7 @@ export class MapBasesView extends BasesView {
         });
     }
 
-    protected extractPointsFromData(): MapPoint[] {
+    protected extractPointsFromData(callback?: (entry: BasesEntry) => Partial<MapPoint>): MapPoint[] {
         if (!this.data) return [];
 
         const points: MapPoint[] = [];
@@ -304,7 +304,7 @@ export class MapBasesView extends BasesView {
             const coordinates = this.extractCoordinates(entry);
             if (!coordinates) continue;
 
-            const point: MapPoint = {
+            let point: MapPoint = {
                 lat: coordinates[0],
                 lng: coordinates[1],
                 title: entry.file.basename,
@@ -351,6 +351,8 @@ export class MapBasesView extends BasesView {
             if (properties.length > 0) {
                 point.properties = properties;
             }
+
+            point = {...point, ...callback?.(entry)};
 
             points.push(point);
         }
