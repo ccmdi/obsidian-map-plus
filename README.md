@@ -40,3 +40,14 @@ In plugin settings under "Tags":
 4. Drag tags to reorder priority
 
 Higher tags take precedence in locations with multiple tags.
+
+### Using timeline view
+
+The timeline view type filters map markers by date.
+
+
+- **Date property**: Property containing dates (supports `YYYY-MM-DD`, `YYYY-MM`, `YYYY`, and negative years like `-1000-01-01` for BC)
+- **Group by property**: Deduplicate markers with the same value - for tracking the same object at different times
+- **Grouping uniqueness mode**: Show all entries, only the most recent, or only the least recent per group (per date property)
+
+The slider and text box filter markers up to a specific date. You can manually type in the text box the exact date you want to jump to. The granularity level is determined by the dropdown.
