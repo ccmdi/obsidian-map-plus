@@ -3,6 +3,7 @@ import {
     BasesPropertyId,
     QueryController,
     ViewOption,
+    setIcon,
 } from 'obsidian';
 import { MapPoint } from '../map-renderer';
 import MapPlugin from '../main';
@@ -38,6 +39,7 @@ export class MapTimelineBasesView extends MapBasesView {
     private isPlaying: boolean = false;
     private playbackInterval: number | null = null;
     private playbackSpeed: number = 1;
+    private controlsExpanded: boolean = false;
 
     constructor(controller: QueryController, scrollEl: HTMLElement, plugin: MapPlugin) {
         super(controller, scrollEl, plugin);
@@ -106,13 +108,29 @@ export class MapTimelineBasesView extends MapBasesView {
             this.applyTimelineFilter();
         });
 
+        // Expand/collapse toggle
+        const toggleContainer = sliderContainer.createDiv({ cls: 'timeline-controls-toggle' });
+        const toggleButton = toggleContainer.createEl('button', { cls: 'timeline-toggle-button' });
+        setIcon(toggleButton, 'chevron-down');
+        toggleButton.addEventListener('click', () => {
+            this.controlsExpanded = !this.controlsExpanded;
+            const playbackContainer = sliderContainer.querySelector('.timeline-playback-controls') as HTMLElement;
+            if (this.controlsExpanded) {
+                playbackContainer.addClass('expanded');
+                setIcon(toggleButton, 'chevron-up');
+            } else {
+                playbackContainer.removeClass('expanded');
+                setIcon(toggleButton, 'chevron-down');
+            }
+        });
+
         // Playback controls
         const playbackContainer = sliderContainer.createDiv({ cls: 'timeline-playback-controls' });
 
         this.playButton = playbackContainer.createEl('button', {
             cls: 'timeline-play-button',
-            text: '▶',
         });
+        setIcon(this.playButton, 'play');
         this.playButton.addEventListener('click', () => {
             this.togglePlayback();
         });
@@ -258,7 +276,7 @@ export class MapTimelineBasesView extends MapBasesView {
 
         this.isPlaying = true;
         if (this.playButton) {
-            this.playButton.textContent = '⏸';
+            setIcon(this.playButton, 'pause');
         }
 
         // Advance 1% per tick, with speed multiplier
@@ -294,7 +312,7 @@ export class MapTimelineBasesView extends MapBasesView {
     private stopPlayback(): void {
         this.isPlaying = false;
         if (this.playButton) {
-            this.playButton.textContent = '▶';
+            setIcon(this.playButton, 'play');
         }
         if (this.playbackInterval !== null) {
             window.clearInterval(this.playbackInterval);
