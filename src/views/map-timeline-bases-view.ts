@@ -13,6 +13,7 @@ export const MapTimelineBasesViewType = 'map-timeline';
 
 interface TimelineMapPoint extends MapPoint {
     date: number;
+    endDate: number | null;
     uniqueId: string;
 }
 
@@ -25,6 +26,7 @@ export class MapTimelineBasesView extends MapBasesView {
     private sliderEl: HTMLInputElement | null = null;
 
     private dateProperty: BasesPropertyId | null = null;
+    private endDateProperty: BasesPropertyId | null = null;
     private uniquenessProperty: BasesPropertyId | null = null;
     private uniquenessMode: UniquenessMode = 'all';
     private granularity: TimelineGranularity = 'daily';
@@ -226,6 +228,7 @@ export class MapTimelineBasesView extends MapBasesView {
         super.loadConfig();
 
         this.dateProperty = this.config.getAsPropertyId('dateProperty');
+        this.endDateProperty = this.config.getAsPropertyId('endDateProperty');
         this.uniquenessProperty = this.config.getAsPropertyId('uniquenessProperty');
 
         const modeVal = this.config.get('uniquenessMode');
@@ -254,15 +257,16 @@ export class MapTimelineBasesView extends MapBasesView {
         let maxDate = -Infinity;
 
         const points = this.extractPointsFromData((entry): Partial<TimelineMapPoint> => {
-            const dateValue = this.extractDateValue(entry);
+            const dateValue = this.extractDateValue(entry, this.dateProperty);
             if (dateValue === null) return {};
 
+            const endDateValue = this.extractDateValue(entry, this.endDateProperty);
             const uniqueId = this.extractUniqueId(entry);
 
             minDate = Math.min(minDate, dateValue);
             maxDate = Math.max(maxDate, dateValue);
 
-            return { date: dateValue, uniqueId };
+            return { date: dateValue, endDate: endDateValue, uniqueId };
         }) as TimelineMapPoint[];
 
         this.allTimelineEntries = points.filter(p => p.date !== undefined);
@@ -279,45 +283,28 @@ export class MapTimelineBasesView extends MapBasesView {
         }
     }
 
-    private extractDateValue(entry: BasesEntry): number | null {
-        if (!this.dateProperty) return null;
+    private extractDateValue(entry: BasesEntry, property: BasesPropertyId | null): number | null {
+        if (!property) return null;
 
         try {
-            let value: unknown = entry.getValue(this.dateProperty);
+            const value = entry.getValue(property)?.toString();
             if (!value) return null;
-            
-            // date property
-            if (typeof value === 'object' && value !== null && 'date' in value) {
-                value = (value as { date?: unknown }).date;
-                if (!value) return null;
-            }
 
-            // date obj
-            if (value instanceof Date) {
-                return value.getTime();
-            }
-            
-            // timestamps
-            if (typeof value === 'number') {
-                return value;
-            }
 
-            const stringValue = String(value).trim();
-
-            if (/^-?\d+$/.test(stringValue)) {
-                const timestamp = parseInt(stringValue);
+            if (/^-?\d+$/.test(value)) {
+                const timestamp = parseInt(value);
                 if (!isNaN(timestamp)) {
                     return timestamp;
                 }
             }
 
             // custom date format
-            const parsed = this.parseDateInput(stringValue);
+            const parsed = this.parseDateInput(value);
             if (parsed !== null) {
                 return parsed;
             }
 
-            const date = new Date(stringValue);
+            const date = new Date(value);
             return isNaN(date.getTime()) ? null : date.getTime();
         } catch {
             return null;
@@ -361,9 +348,18 @@ export class MapTimelineBasesView extends MapBasesView {
             return;
         }
 
-        let filteredPoints = this.allTimelineEntries.filter(
-            point => point.date >= this.dateRangeStart && point.date <= this.dateRangeEnd
-        );
+        let filteredPoints = this.allTimelineEntries.filter(point => {
+            const inDateRange = point.date >= this.dateRangeStart && point.date <= this.dateRangeEnd;
+            // Entity must have started by the current time
+            if (!inDateRange) return false;
+
+            // Entity must not have ended before the current time (null = ongoing/no end date)
+            if (point.endDate !== null && point.endDate < this.dateRangeEnd) {
+                return false;
+            }
+
+            return true;
+        });
 
         if (this.uniquenessProperty && this.uniquenessMode !== 'all') {
             const grouped = new Map<string, TimelineMapPoint[]>();
@@ -423,11 +419,18 @@ export class MapTimelineBasesView extends MapBasesView {
                 type: 'group',
                 items: [
                     {
-                        displayName: 'Date property',
+                        displayName: 'Start date property',
                         type: 'property',
                         key: 'dateProperty',
                         filter: (prop) => !prop.startsWith('file.'),
                         placeholder: 'Property',
+                    },
+                    {
+                        displayName: 'End date property',
+                        type: 'property',
+                        key: 'endDateProperty',
+                        filter: (prop) => !prop.startsWith('file.'),
+                        placeholder: 'None',
                     },
                     {
                         displayName: 'Group by property',
