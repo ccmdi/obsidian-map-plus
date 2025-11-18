@@ -23,6 +23,7 @@ export class MapTimelineBasesView extends MapBasesView {
     type = MapTimelineBasesViewType;
 
     private sliderEl: HTMLInputElement | null = null;
+    private playButton: HTMLButtonElement | null = null;
 
     private dateProperty: BasesPropertyId | null = null;
     private uniquenessProperty: BasesPropertyId | null = null;
@@ -31,6 +32,10 @@ export class MapTimelineBasesView extends MapBasesView {
     private dateRangeStart: number = 0;
     private dateRangeEnd: number = Date.now();
     private allTimelineEntries: TimelineMapPoint[] = [];
+
+    private isPlaying: boolean = false;
+    private playbackInterval: number | null = null;
+    private playbackSpeed: number = 1;
 
     constructor(controller: QueryController, scrollEl: HTMLElement, plugin: MapPlugin) {
         super(controller, scrollEl, plugin);
@@ -92,10 +97,36 @@ export class MapTimelineBasesView extends MapBasesView {
         this.sliderEl.value = '100';
 
         this.sliderEl.addEventListener('input', () => {
+            this.stopPlayback(); // Stop playback on manual adjustment
             this.updateDateRange();
             this.config.set('_dateRangeEnd', this.dateRangeEnd);
             this.updateDateInput(dateInputEl);
             this.applyTimelineFilter();
+        });
+
+        // Playback controls
+        const playbackContainer = sliderContainer.createDiv({ cls: 'timeline-playback-controls' });
+
+        this.playButton = playbackContainer.createEl('button', {
+            cls: 'timeline-play-button',
+            text: '▶',
+        });
+        this.playButton.addEventListener('click', () => {
+            this.togglePlayback();
+        });
+
+        const speedSelect = playbackContainer.createEl('select', {
+            cls: 'timeline-speed-select',
+        });
+        speedSelect.createEl('option', { value: '0.5', text: '0.5x' });
+        speedSelect.createEl('option', { value: '1', text: '1x' });
+        speedSelect.createEl('option', { value: '2', text: '2x' });
+        speedSelect.createEl('option', { value: '5', text: '5x' });
+        speedSelect.createEl('option', { value: '10', text: '10x' });
+        speedSelect.value = '1';
+
+        speedSelect.addEventListener('change', () => {
+            this.playbackSpeed = parseFloat(speedSelect.value);
         });
 
         this.updateDateInput(dateInputEl);
@@ -196,9 +227,76 @@ export class MapTimelineBasesView extends MapBasesView {
 
 
     private destroySlider(): void {
+        this.stopPlayback();
         if (this.sliderEl) {
             this.sliderEl.closest('.bases-timeline-slider')?.remove();
             this.sliderEl = null;
+            this.playButton = null;
+        }
+    }
+
+    private togglePlayback(): void {
+        if (this.isPlaying) {
+            this.stopPlayback();
+        } else {
+            this.startPlayback();
+        }
+    }
+
+    private startPlayback(): void {
+        if (this.isPlaying || !this.sliderEl) return;
+
+        // If at end, restart from beginning
+        if (parseInt(this.sliderEl.value) >= 100) {
+            this.sliderEl.value = '0';
+            this.updateDateRange();
+            this.config.set('_dateRangeEnd', this.dateRangeEnd);
+            this.applyTimelineFilter();
+        }
+
+        this.isPlaying = true;
+        if (this.playButton) {
+            this.playButton.textContent = '⏸';
+        }
+
+        // Advance 1% per tick, with speed multiplier
+        const tickInterval = 50; // 50ms base tick
+        this.playbackInterval = window.setInterval(() => {
+            if (!this.sliderEl) {
+                this.stopPlayback();
+                return;
+            }
+
+            const currentValue = parseInt(this.sliderEl.value);
+            const increment = this.playbackSpeed;
+            const newValue = Math.min(100, currentValue + increment);
+
+            this.sliderEl.value = newValue.toString();
+            this.updateDateRange();
+            this.config.set('_dateRangeEnd', this.dateRangeEnd);
+
+            const dateInputEl = this.sliderEl.parentElement?.querySelector('.timeline-date-input') as HTMLInputElement;
+            if (dateInputEl) {
+                this.updateDateInput(dateInputEl);
+            }
+
+            this.applyTimelineFilter();
+
+            // Stop at end
+            if (newValue >= 100) {
+                this.stopPlayback();
+            }
+        }, tickInterval);
+    }
+
+    private stopPlayback(): void {
+        this.isPlaying = false;
+        if (this.playButton) {
+            this.playButton.textContent = '▶';
+        }
+        if (this.playbackInterval !== null) {
+            window.clearInterval(this.playbackInterval);
+            this.playbackInterval = null;
         }
     }
 
@@ -302,7 +400,12 @@ export class MapTimelineBasesView extends MapBasesView {
                 return value;
             }
 
-            const stringValue = String(value).trim();
+            // Convert to string safely
+            if (typeof value !== 'string') {
+                return null;
+            }
+
+            const stringValue = value.trim();
 
             if (/^-?\d+$/.test(stringValue)) {
                 const timestamp = parseInt(stringValue);

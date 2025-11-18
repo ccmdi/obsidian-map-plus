@@ -449,3 +449,40 @@
 .timeline-slider::-moz-range-thumb:hover {
     transform: scale(1.2);
 }
+
+.timeline-playback-controls {
+    display: flex;
+    gap: 8px;
+    align-items: center;
+}
+
+.timeline-play-button {
+    width: 36px;
+    height: 28px;
+    padding: 0;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-secondary);
+    color: var(--text-normal);
+    font-size: 14px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: background 0.15s ease;
+}
+
+.timeline-play-button:hover {
+    background: var(--background-modifier-hover);
+}
+
+.timeline-speed-select {
+    flex: 1;
+    padding: 6px 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-secondary);
+    color: var(--text-normal);
+    font-size: 13px;
+    cursor: pointer;
+}
