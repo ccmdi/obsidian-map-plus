@@ -3,6 +3,7 @@ import {
     BasesPropertyId,
     QueryController,
     ViewOption,
+    setIcon,
 } from 'obsidian';
 import { MapPoint } from '../map-renderer';
 import MapPlugin from '../main';
@@ -24,6 +25,7 @@ export class MapTimelineBasesView extends MapBasesView {
     type = MapTimelineBasesViewType;
 
     private sliderEl: HTMLInputElement | null = null;
+    private playButton: HTMLButtonElement | null = null;
 
     private dateProperty: BasesPropertyId | null = null;
     private endDateProperty: BasesPropertyId | null = null;
@@ -33,6 +35,11 @@ export class MapTimelineBasesView extends MapBasesView {
     private dateRangeStart: number = 0;
     private dateRangeEnd: number = Date.now();
     private allTimelineEntries: TimelineMapPoint[] = [];
+
+    private isPlaying: boolean = false;
+    private playbackInterval: number | null = null;
+    private playbackSpeed: number = 1;
+    private controlsExpanded: boolean = false;
 
     constructor(controller: QueryController, scrollEl: HTMLElement, plugin: MapPlugin) {
         super(controller, scrollEl, plugin);
@@ -94,10 +101,52 @@ export class MapTimelineBasesView extends MapBasesView {
         this.sliderEl.value = '100';
 
         this.sliderEl.addEventListener('input', () => {
+            this.stopPlayback(); // Stop playback on manual adjustment
             this.updateDateRange();
             this.config.set('_dateRangeEnd', this.dateRangeEnd);
             this.updateDateInput(dateInputEl);
             this.applyTimelineFilter();
+        });
+
+        // Expand/collapse toggle
+        const toggleContainer = sliderContainer.createDiv({ cls: 'timeline-controls-toggle' });
+        const toggleButton = toggleContainer.createEl('button', { cls: 'timeline-toggle-button' });
+        setIcon(toggleButton, 'chevron-down');
+        toggleButton.addEventListener('click', () => {
+            this.controlsExpanded = !this.controlsExpanded;
+            const playbackContainer = sliderContainer.querySelector('.timeline-playback-controls') as HTMLElement;
+            if (this.controlsExpanded) {
+                playbackContainer.addClass('expanded');
+                toggleButton.addClass('expanded');
+            } else {
+                playbackContainer.removeClass('expanded');
+                toggleButton.removeClass('expanded');
+            }
+        });
+
+        // Playback controls
+        const playbackContainer = sliderContainer.createDiv({ cls: 'timeline-playback-controls' });
+
+        this.playButton = playbackContainer.createEl('button', {
+            cls: 'timeline-play-button',
+        });
+        setIcon(this.playButton, 'play');
+        this.playButton.addEventListener('click', () => {
+            this.togglePlayback();
+        });
+
+        const speedSelect = playbackContainer.createEl('select', {
+            cls: 'timeline-speed-select',
+        });
+        speedSelect.createEl('option', { value: '0.1', text: '0.1x' });
+        speedSelect.createEl('option', { value: '0.5', text: '0.5x' });
+        speedSelect.createEl('option', { value: '1', text: '1x' });
+        speedSelect.createEl('option', { value: '2', text: '2x' });
+        speedSelect.createEl('option', { value: '5', text: '5x' });
+        speedSelect.value = '1';
+
+        speedSelect.addEventListener('change', () => {
+            this.playbackSpeed = parseFloat(speedSelect.value);
         });
 
         this.updateDateInput(dateInputEl);
@@ -198,9 +247,80 @@ export class MapTimelineBasesView extends MapBasesView {
 
 
     private destroySlider(): void {
+        this.stopPlayback();
         if (this.sliderEl) {
             this.sliderEl.closest('.bases-timeline-slider')?.remove();
             this.sliderEl = null;
+            this.playButton = null;
+        }
+    }
+
+    private togglePlayback(): void {
+        if (this.isPlaying) {
+            this.stopPlayback();
+        } else {
+            this.startPlayback();
+        }
+    }
+
+    private startPlayback(): void {
+        if (this.isPlaying || !this.sliderEl || this.allTimelineEntries.length === 0) return;
+
+        const minDate = Math.min(...this.allTimelineEntries.map(e => e.date));
+        const maxDate = Math.max(...this.allTimelineEntries.map(e => e.date));
+        const totalRange = maxDate - minDate;
+
+        // If at end, restart from beginning
+        if (this.dateRangeEnd >= maxDate) {
+            this.dateRangeEnd = minDate;
+            this.updateSliderFromDate();
+            this.config.set('_dateRangeEnd', this.dateRangeEnd);
+            this.applyTimelineFilter();
+        }
+
+        this.isPlaying = true;
+        if (this.playButton) {
+            setIcon(this.playButton, 'pause');
+        }
+
+        // Advance date directly based on time intervals
+        const tickInterval = 100; // 100ms base tick
+        this.playbackInterval = window.setInterval(() => {
+            if (!this.sliderEl || this.allTimelineEntries.length === 0) {
+                this.stopPlayback();
+                return;
+            }
+
+            // Calculate date increment based on speed
+            // At 1x speed, complete timeline in ~100 seconds
+            const dateIncrement = (totalRange / 100000) * tickInterval * this.playbackSpeed;
+
+            this.dateRangeEnd = Math.min(maxDate, this.dateRangeEnd + dateIncrement);
+            this.updateSliderFromDate();
+            this.config.set('_dateRangeEnd', this.dateRangeEnd);
+
+            const dateInputEl = this.sliderEl.parentElement?.querySelector('.timeline-date-input') as HTMLInputElement;
+            if (dateInputEl) {
+                this.updateDateInput(dateInputEl);
+            }
+
+            this.applyTimelineFilter();
+
+            // Stop at end
+            if (this.dateRangeEnd >= maxDate) {
+                this.stopPlayback();
+            }
+        }, tickInterval);
+    }
+
+    private stopPlayback(): void {
+        this.isPlaying = false;
+        if (this.playButton) {
+            setIcon(this.playButton, 'play');
+        }
+        if (this.playbackInterval !== null) {
+            window.clearInterval(this.playbackInterval);
+            this.playbackInterval = null;
         }
     }
 
