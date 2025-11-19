@@ -413,7 +413,7 @@
 .timeline-slider {
     width: 100% !important;
     height: 6px;
-    margin: 0 0 16px 0 !important;
+    margin: 0 0 8px 0 !important;
     padding: 0 !important;
     border-radius: 3px;
     background: var(--background-modifier-border);
@@ -454,30 +454,39 @@
 .timeline-controls-toggle {
     display: flex;
     justify-content: center;
-    /* margin-top: -8px; */
 }
 
 .timeline-toggle-button {
     width: 100%;
-    height: 16px;
+    height: 12px;
     padding: 0;
+    margin: 0;
     border: none;
-    background: transparent;
-    color: var(--text-muted);
+    background: transparent !important;
+    color: var(--text-faint);
     cursor: pointer;
     display: flex;
     align-items: center;
     justify-content: center;
     transition: color 0.15s ease;
+    outline: none;
+    box-shadow: none !important;
 }
 
 .timeline-toggle-button:hover {
-    color: var(--text-normal);
+    color: var(--text-muted);
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.timeline-toggle-button:active {
+    background: transparent !important;
+    box-shadow: none !important;
 }
 
 .timeline-toggle-button svg {
-    width: 14px;
-    height: 14px;
+    width: 12px;
+    height: 12px;
     transition: transform 0.3s ease;
 }
 
