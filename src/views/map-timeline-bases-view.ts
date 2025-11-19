@@ -138,11 +138,11 @@ export class MapTimelineBasesView extends MapBasesView {
         const speedSelect = playbackContainer.createEl('select', {
             cls: 'timeline-speed-select',
         });
+        speedSelect.createEl('option', { value: '0.1', text: '0.1x' });
         speedSelect.createEl('option', { value: '0.5', text: '0.5x' });
         speedSelect.createEl('option', { value: '1', text: '1x' });
         speedSelect.createEl('option', { value: '2', text: '2x' });
         speedSelect.createEl('option', { value: '5', text: '5x' });
-        speedSelect.createEl('option', { value: '10', text: '10x' });
         speedSelect.value = '1';
 
         speedSelect.addEventListener('change', () => {
