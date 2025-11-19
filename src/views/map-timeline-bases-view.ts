@@ -117,10 +117,10 @@ export class MapTimelineBasesView extends MapBasesView {
             const playbackContainer = sliderContainer.querySelector('.timeline-playback-controls') as HTMLElement;
             if (this.controlsExpanded) {
                 playbackContainer.addClass('expanded');
-                setIcon(toggleButton, 'chevron-up');
+                toggleButton.addClass('expanded');
             } else {
                 playbackContainer.removeClass('expanded');
-                setIcon(toggleButton, 'chevron-down');
+                toggleButton.removeClass('expanded');
             }
         });
 
@@ -264,12 +264,16 @@ export class MapTimelineBasesView extends MapBasesView {
     }
 
     private startPlayback(): void {
-        if (this.isPlaying || !this.sliderEl) return;
+        if (this.isPlaying || !this.sliderEl || this.allTimelineEntries.length === 0) return;
+
+        const minDate = Math.min(...this.allTimelineEntries.map(e => e.date));
+        const maxDate = Math.max(...this.allTimelineEntries.map(e => e.date));
+        const totalRange = maxDate - minDate;
 
         // If at end, restart from beginning
-        if (parseInt(this.sliderEl.value) >= 100) {
-            this.sliderEl.value = '0';
-            this.updateDateRange();
+        if (this.dateRangeEnd >= maxDate) {
+            this.dateRangeEnd = minDate;
+            this.updateSliderFromDate();
             this.config.set('_dateRangeEnd', this.dateRangeEnd);
             this.applyTimelineFilter();
         }
@@ -279,20 +283,20 @@ export class MapTimelineBasesView extends MapBasesView {
             setIcon(this.playButton, 'pause');
         }
 
-        // Advance 1% per tick, with speed multiplier
-        const tickInterval = 50; // 50ms base tick
+        // Advance date directly based on time intervals
+        const tickInterval = 100; // 100ms base tick
         this.playbackInterval = window.setInterval(() => {
-            if (!this.sliderEl) {
+            if (!this.sliderEl || this.allTimelineEntries.length === 0) {
                 this.stopPlayback();
                 return;
             }
 
-            const currentValue = parseInt(this.sliderEl.value);
-            const increment = this.playbackSpeed;
-            const newValue = Math.min(100, currentValue + increment);
+            // Calculate date increment based on speed
+            // At 1x speed, complete timeline in ~100 seconds
+            const dateIncrement = (totalRange / 100000) * tickInterval * this.playbackSpeed;
 
-            this.sliderEl.value = newValue.toString();
-            this.updateDateRange();
+            this.dateRangeEnd = Math.min(maxDate, this.dateRangeEnd + dateIncrement);
+            this.updateSliderFromDate();
             this.config.set('_dateRangeEnd', this.dateRangeEnd);
 
             const dateInputEl = this.sliderEl.parentElement?.querySelector('.timeline-date-input') as HTMLInputElement;
@@ -303,7 +307,7 @@ export class MapTimelineBasesView extends MapBasesView {
             this.applyTimelineFilter();
 
             // Stop at end
-            if (newValue >= 100) {
+            if (this.dateRangeEnd >= maxDate) {
                 this.stopPlayback();
             }
         }, tickInterval);
