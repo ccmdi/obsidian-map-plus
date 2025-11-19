@@ -373,12 +373,13 @@
     z-index: 10;
     display: flex;
     flex-direction: column;
-    gap: 16px;
+    gap: 0;
 }
 
 .timeline-input-container {
     display: flex;
     gap: 8px;
+    margin-bottom: 16px;
 }
 
 .timeline-date-input {
@@ -412,7 +413,7 @@
 .timeline-slider {
     width: 100% !important;
     height: 6px;
-    margin: 0 !important;
+    margin: 0 0 16px 0 !important;
     padding: 0 !important;
     border-radius: 3px;
     background: var(--background-modifier-border);
@@ -457,8 +458,8 @@
 }
 
 .timeline-toggle-button {
-    width: 100%;
-    height: 20px;
+    width: 24px;
+    height: 16px;
     padding: 0;
     border: none;
     background: transparent;
@@ -474,6 +475,11 @@
     color: var(--text-normal);
 }
 
+.timeline-toggle-button svg {
+    width: 14px;
+    height: 14px;
+}
+
 .timeline-playback-controls {
     display: flex;
     gap: 8px;
@@ -481,12 +487,13 @@
     max-height: 0;
     overflow: hidden;
     opacity: 0;
-    transition: max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease;
-    margin-top: 0;
+    padding: 0;
+    margin: 0;
+    transition: max-height 0.3s ease, opacity 0.3s ease, margin-top 0.3s ease, padding-top 0.3s ease;
 }
 
 .timeline-playback-controls.expanded {
-    max-height: 50px;
+    max-height: 100px;
     opacity: 1;
     margin-top: 8px;
 }
