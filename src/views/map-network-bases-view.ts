@@ -607,27 +607,27 @@ export class MapNetworkBasesView extends MapBasesView {
                 };
             });
 
+        const tilt = this.animationStyle === 'pulse'
+            ? Math.sin(this.animationTime * Math.PI * 2) * 15
+            : 0;
+
         return new ArcLayer<ArcDataPoint>({
             id: 'arc-layer',
             data: arcData,
             pickable: true,
-            getWidth: (d: ArcDataPoint) => d.width,
+            widthMinPixels: 1,
+            widthMaxPixels: 10,
             getSourcePosition: (d: ArcDataPoint) => d.sourcePosition,
             getTargetPosition: (d: ArcDataPoint) => d.targetPosition,
             getSourceColor: (d: ArcDataPoint) => d.color,
             getTargetColor: (d: ArcDataPoint) => d.color,
+            getWidth: (d: ArcDataPoint) => d.width,
             greatCircle: true,
-            getHeight: () => 0.3,
-            getTilt: () => {
-                if (this.animationStyle === 'pulse') {
-                    return Math.sin(this.animationTime * Math.PI * 2) * 15;
-                }
-                return 0;
-            },
+            getHeight: 0.3,
+            getTilt: tilt,
             onClick: (info: any) => {
                 if (info.object?.connection) {
                     const conn = info.object.connection as NetworkConnection;
-                    // Open the source file
                     if (conn.source.file) {
                         void this.app.workspace.getLeaf(false).openFile(conn.source.file);
                     }
