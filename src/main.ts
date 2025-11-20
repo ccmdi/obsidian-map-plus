@@ -1,6 +1,7 @@
 import { Plugin } from 'obsidian';
 import { MapBasesView } from './views/map-bases-view';
 import { MapTimelineBasesView } from './views/map-timeline-bases-view';
+import { MapNetworkBasesView } from './views/map-network-bases-view';
 import { MapTagSettings } from './settings/map-tag-settings';
 import { MapSettingTab, MapPluginSettings, DEFAULT_SETTINGS } from './settings/map-settings';
 import { ThumbnailCacheManager } from './thumbnail-cache';
@@ -37,6 +38,10 @@ export default class MapPlugin extends Plugin {
 			this.registerTimelineView();
 		}
 
+        if (this.settings.enableNetworkView) {
+			this.registerNetworkView();
+		}
+
         this.addSettingTab(new MapSettingTab(this.app, this));
     }
 
@@ -64,6 +69,15 @@ export default class MapPlugin extends Plugin {
 			icon: 'lucide-calendar',
 			factory: (controller, containerEl) => new MapTimelineBasesView(controller, containerEl, this),
 			options: () => MapTimelineBasesView.getViewOptions(),
+		});
+    }
+
+    registerNetworkView() {
+        this.registerBasesView('map-network', {
+			name: 'Map network',
+			icon: 'lucide-network',
+			factory: (controller, containerEl) => new MapNetworkBasesView(controller, containerEl, this),
+			options: () => MapNetworkBasesView.getViewOptions(),
 		});
     }
 }

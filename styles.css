@@ -547,3 +547,187 @@
     font-size: 13px;
     cursor: pointer;
 }
+
+/* Network Arc View Styles */
+.bases-network-controls {
+    position: absolute;
+    top: 6px;
+    right: 6px;
+    width: 320px;
+    background: var(--background-primary);
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 8px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 10;
+    display: flex;
+    flex-direction: column;
+}
+
+.network-controls-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--background-modifier-border);
+}
+
+.network-controls-info {
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-normal);
+}
+
+.network-toggle-button {
+    width: 24px;
+    height: 24px;
+    padding: 0;
+    margin: 0;
+    border: none;
+    background: transparent !important;
+    color: var(--text-faint);
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s ease;
+    outline: none;
+    box-shadow: none !important;
+}
+
+.network-toggle-button:hover {
+    color: var(--text-muted);
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.network-toggle-button:active {
+    background: transparent !important;
+    box-shadow: none !important;
+}
+
+.network-toggle-button svg {
+    width: 16px;
+    height: 16px;
+    transition: transform 0.3s ease;
+}
+
+.network-toggle-button.expanded svg {
+    transform: rotate(180deg);
+}
+
+.network-controls-settings {
+    max-height: 0;
+    overflow: hidden;
+    opacity: 0;
+    transition: max-height 0.3s ease, opacity 0.3s ease, padding 0.3s ease;
+}
+
+.network-controls-settings.expanded {
+    max-height: 600px;
+    opacity: 1;
+    padding: 16px;
+}
+
+.network-control-group {
+    margin-bottom: 16px;
+}
+
+.network-control-group:last-child {
+    margin-bottom: 0;
+}
+
+.network-control-label {
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-muted);
+    margin-bottom: 8px;
+}
+
+.network-control-label-inline {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 13px;
+    color: var(--text-normal);
+    cursor: pointer;
+}
+
+.network-control-label-inline input[type="checkbox"] {
+    cursor: pointer;
+}
+
+.network-slider-container {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.network-slider {
+    flex: 1;
+    height: 6px;
+    margin: 0;
+    padding: 0;
+    border-radius: 3px;
+    background: var(--background-modifier-border);
+    outline: none;
+    -webkit-appearance: none;
+    box-sizing: border-box;
+}
+
+.network-slider::-webkit-slider-thumb {
+    -webkit-appearance: none;
+    appearance: none;
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--interactive-accent);
+    cursor: pointer;
+    transition: transform 0.15s ease;
+}
+
+.network-slider::-webkit-slider-thumb:hover {
+    transform: scale(1.2);
+}
+
+.network-slider::-moz-range-thumb {
+    width: 16px;
+    height: 16px;
+    border-radius: 50%;
+    background: var(--interactive-accent);
+    cursor: pointer;
+    border: none;
+    transition: transform 0.15s ease;
+}
+
+.network-slider::-moz-range-thumb:hover {
+    transform: scale(1.2);
+}
+
+.network-slider-value {
+    min-width: 32px;
+    text-align: right;
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--text-normal);
+}
+
+.network-select {
+    width: 100%;
+    padding: 6px 8px;
+    border: 1px solid var(--background-modifier-border);
+    border-radius: 4px;
+    background: var(--background-secondary);
+    color: var(--text-normal);
+    font-size: 13px;
+    cursor: pointer;
+    transition: background 0.15s ease;
+}
+
+.network-select:hover {
+    background: var(--background-modifier-hover);
+}
+
+.network-select:focus {
+    outline: none;
+    border-color: var(--interactive-accent);
+}

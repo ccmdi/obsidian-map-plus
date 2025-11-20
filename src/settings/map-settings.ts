@@ -13,6 +13,7 @@ export interface MapPluginSettings {
     thumbnailTargetSize: number;
     tagSettings: MapTagSettings;
     enableTimelineView: boolean;
+    enableNetworkView: boolean;
 }
 
 export const DEFAULT_SETTINGS: MapPluginSettings = {
@@ -25,7 +26,8 @@ export const DEFAULT_SETTINGS: MapPluginSettings = {
     enableThumbnailCache: false,
     thumbnailTargetSize: 25,
     tagSettings: DEFAULT_MAP_TAG_SETTINGS,
-    enableTimelineView: false
+    enableTimelineView: false,
+    enableNetworkView: true
 };
 
 export class MapSettingTab extends PluginSettingTab {
@@ -241,6 +243,20 @@ export class MapSettingTab extends PluginSettingTab {
 
                     if (value) {
                         this.plugin.registerTimelineView();
+                    }
+                }));
+
+        new Setting(containerEl)
+            .setName('Enable map network view')
+            .setDesc('Enable the map network view for visualizing connections between locations (disable requires restart)')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableNetworkView)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableNetworkView = value;
+                    await this.plugin.saveSettings();
+
+                    if (value) {
+                        this.plugin.registerNetworkView();
                     }
                 }));
     }
