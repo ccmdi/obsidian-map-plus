@@ -474,6 +474,15 @@ export class MapBasesView extends BasesView {
                         placeholder: '0,0',
                     },
                     {
+                        displayName: 'Zoom level',
+                        type: 'slider',
+                        key: 'defaultZoom',
+                        min: 1,
+                        max: 18,
+                        step: 0.5,
+                        default: DEFAULT_MAP_ZOOM,
+                    },
+                    {
                         displayName: 'Marker type',
                         type: 'dropdown',
                         key: 'markerType',
