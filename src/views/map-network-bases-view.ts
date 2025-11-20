@@ -580,24 +580,32 @@ export class MapNetworkBasesView extends MapBasesView {
     }
 
     private createArcLayer(connections: NetworkConnection[]): ArcLayer<ArcDataPoint> {
-        const arcData: ArcDataPoint[] = connections.map(conn => {
-            // Calculate color based on strength
-            const strengthRatio = (conn.strength - 1) / (this.maxStrength - 1 || 1);
-            const baseColor: [number, number, number] = [100, 180, 255];
-            const strongColor: [number, number, number] = [255, 100, 150];
+        const arcData: ArcDataPoint[] = connections
+            .filter(conn => {
+                // Validate coordinates
+                return conn.source.lat != null && conn.source.lng != null &&
+                       conn.target.lat != null && conn.target.lng != null &&
+                       !isNaN(conn.source.lat) && !isNaN(conn.source.lng) &&
+                       !isNaN(conn.target.lat) && !isNaN(conn.target.lng);
+            })
+            .map(conn => {
+                // Calculate color based on strength
+                const strengthRatio = (conn.strength - 1) / (this.maxStrength - 1 || 1);
+                const baseColor: [number, number, number] = [100, 180, 255];
+                const strongColor: [number, number, number] = [255, 100, 150];
 
-            const r = Math.round(baseColor[0] + (strongColor[0] - baseColor[0]) * strengthRatio);
-            const g = Math.round(baseColor[1] + (strongColor[1] - baseColor[1]) * strengthRatio);
-            const b = Math.round(baseColor[2] + (strongColor[2] - baseColor[2]) * strengthRatio);
+                const r = Math.round(baseColor[0] + (strongColor[0] - baseColor[0]) * strengthRatio);
+                const g = Math.round(baseColor[1] + (strongColor[1] - baseColor[1]) * strengthRatio);
+                const b = Math.round(baseColor[2] + (strongColor[2] - baseColor[2]) * strengthRatio);
 
-            return {
-                sourcePosition: [conn.source.lng, conn.source.lat] as [number, number],
-                targetPosition: [conn.target.lng, conn.target.lat] as [number, number],
-                color: [r, g, b, Math.round(this.arcOpacity * 255)] as [number, number, number, number],
-                width: Math.log(conn.strength + 1) * 2,
-                connection: conn,
-            };
-        });
+                return {
+                    sourcePosition: [conn.source.lng, conn.source.lat] as [number, number],
+                    targetPosition: [conn.target.lng, conn.target.lat] as [number, number],
+                    color: [r, g, b, Math.round(this.arcOpacity * 255)] as [number, number, number, number],
+                    width: Math.max(1, Math.log(conn.strength + 1) * 2),
+                    connection: conn,
+                };
+            });
 
         return new ArcLayer<ArcDataPoint>({
             id: 'arc-layer',
@@ -609,8 +617,8 @@ export class MapNetworkBasesView extends MapBasesView {
             getSourceColor: (d: ArcDataPoint) => d.color,
             getTargetColor: (d: ArcDataPoint) => d.color,
             greatCircle: true,
-            getHeight: 0.3,
-            getTilt: (d: ArcDataPoint) => {
+            getHeight: () => 0.3,
+            getTilt: () => {
                 if (this.animationStyle === 'pulse') {
                     return Math.sin(this.animationTime * Math.PI * 2) * 15;
                 }
@@ -627,8 +635,6 @@ export class MapNetworkBasesView extends MapBasesView {
             },
             updateTriggers: {
                 getTilt: this.animationTime,
-                getSourceColor: [this.arcOpacity, this.minStrength],
-                getTargetColor: [this.arcOpacity, this.minStrength],
             },
         });
     }
