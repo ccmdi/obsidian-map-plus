@@ -1,6 +1,6 @@
 {
 	"name": "mapplus",
-	"version": "1.0.7",
+	"version": "1.0.8",
 	"description": "A performant and customizable map inside Bases",
 	"main": "main.js",
 	"scripts": {
