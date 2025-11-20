@@ -37,7 +37,6 @@ export class MapTimelineBasesView extends MapBasesView {
     private dateRangeEnd: number = Date.now();
     private allTimelineEntries: TimelineMapPoint[] = [];
     private mapUpdateTimeout?: number;
-    private isProgrammaticDateUpdate: boolean = false;
     
     private isPlaying: boolean = false;
     private playbackInterval: number | null = null;
@@ -91,9 +90,7 @@ export class MapTimelineBasesView extends MapBasesView {
                 this.dateRangeEnd = timestamp;
                 this.config.set('_dateRangeEnd', timestamp);
                 this.updateSliderFromDate();
-                if (!this.isProgrammaticDateUpdate) {
-                    this.updateMapWithFilteredPoints(this.applyTimelineFilter());
-                }
+                this.updateMapWithFilteredPoints(this.applyTimelineFilter());
             }
         });
 
@@ -108,7 +105,6 @@ export class MapTimelineBasesView extends MapBasesView {
         this.sliderEl.addEventListener('input', () => {
             this.stopPlayback();
             this.updateDateRange();
-            this.config.set('_dateRangeEnd', this.dateRangeEnd);
             this.updateDateInput(dateInputEl);
             
             const filteredPoints = this.applyTimelineFilter();
@@ -117,6 +113,8 @@ export class MapTimelineBasesView extends MapBasesView {
 
         this.sliderEl.addEventListener('change', () => {
             const filteredPoints = this.applyTimelineFilter();
+
+            this.config.set('_dateRangeEnd', this.dateRangeEnd);
             
             if (this.mapUpdateTimeout) {
                 window.clearTimeout(this.mapUpdateTimeout);
@@ -241,28 +239,22 @@ export class MapTimelineBasesView extends MapBasesView {
     }
 
     private updateDateInput(dateInputEl: HTMLInputElement): void {
-        this.isProgrammaticDateUpdate = true;
-        
-        try {
-            const date = new Date(this.dateRangeEnd);
-            if (isNaN(date.getTime())) return;
-    
-            const year = date.getFullYear();
-            const month = this.padNumber(date.getMonth() + 1, 2);
-            const day = this.padNumber(date.getDate(), 2);
-    
-            if (this.granularity === 'yearly') {
-                dateInputEl.value = `${year}`;
-                dateInputEl.placeholder = 'YYYY';
-            } else if (this.granularity === 'monthly') {
-                dateInputEl.value = `${year}-${month}`;
-                dateInputEl.placeholder = 'YYYY-MM';
-            } else {
-                dateInputEl.value = `${year}-${month}-${day}`;
-                dateInputEl.placeholder = 'YYYY-MM-DD';
-            }
-        } finally {
-            this.isProgrammaticDateUpdate = false;
+        const date = new Date(this.dateRangeEnd);
+        if (isNaN(date.getTime())) return;
+
+        const year = date.getFullYear();
+        const month = this.padNumber(date.getMonth() + 1, 2);
+        const day = this.padNumber(date.getDate(), 2);
+
+        if (this.granularity === 'yearly') {
+            dateInputEl.value = `${year}`;
+            dateInputEl.placeholder = 'YYYY';
+        } else if (this.granularity === 'monthly') {
+            dateInputEl.value = `${year}-${month}`;
+            dateInputEl.placeholder = 'YYYY-MM';
+        } else {
+            dateInputEl.value = `${year}-${month}-${day}`;
+            dateInputEl.placeholder = 'YYYY-MM-DD';
         }
     }
 
