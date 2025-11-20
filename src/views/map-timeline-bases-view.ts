@@ -103,7 +103,10 @@ export class MapTimelineBasesView extends MapBasesView {
         this.sliderEl.value = '100';
 
         this.sliderEl.addEventListener('input', () => {
-            this.stopPlayback();
+            //TODO: would be preferable to not autofit when stopping playback, but would likely require knowing *what* changed in the config?
+            if (this.isPlaying) {
+                this.stopPlayback();
+            }
             this.updateDateRange();
             this.updateDateInput(dateInputEl);
             
@@ -289,7 +292,6 @@ export class MapTimelineBasesView extends MapBasesView {
         if (this.dateRangeEnd >= maxDate) {
             this.dateRangeEnd = minDate;
             this.updateSliderFromDate();
-            this.config.set('_dateRangeEnd', this.dateRangeEnd);
             this.updateMapWithFilteredPoints(this.applyTimelineFilter(), false);
         }
 
@@ -312,7 +314,6 @@ export class MapTimelineBasesView extends MapBasesView {
 
             this.dateRangeEnd = Math.min(maxDate, this.dateRangeEnd + dateIncrement);
             this.updateSliderFromDate();
-            this.config.set('_dateRangeEnd', this.dateRangeEnd);
 
             const dateInputEl = this.sliderEl.parentElement?.querySelector('.timeline-date-input') as HTMLInputElement;
             if (dateInputEl) {
@@ -337,6 +338,7 @@ export class MapTimelineBasesView extends MapBasesView {
             window.clearInterval(this.playbackInterval);
             this.playbackInterval = null;
         }
+        this.config.set('_dateRangeEnd', this.dateRangeEnd);
     }
 
     public onDataUpdated(): void {
@@ -345,11 +347,13 @@ export class MapTimelineBasesView extends MapBasesView {
         if (this.dateProperty) {
             this.updateTimelineData();
 
-            if(!this.deck) {
+            if (this.deck) {
+                this.updateMapWithFilteredPoints(this.applyTimelineFilter());
+            } else {
                 super.loadConfig();
                 super.renderMap();
-
                 this.createSlider();
+                this.updateMapWithFilteredPoints(this.applyTimelineFilter());
             }
         } else {
             super.onDataUpdated();
