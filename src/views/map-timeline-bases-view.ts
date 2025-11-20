@@ -251,9 +251,11 @@ export class MapTimelineBasesView extends MapBasesView {
             dateInputEl.placeholder = 'YYYY';
         } else if (this.granularity === 'monthly') {
             dateInputEl.value = `${year}-${month}`;
+            //eslint-disable-next-line obsidianmd/ui/sentence-case
             dateInputEl.placeholder = 'YYYY-MM';
         } else {
             dateInputEl.value = `${year}-${month}-${day}`;
+            //eslint-disable-next-line obsidianmd/ui/sentence-case
             dateInputEl.placeholder = 'YYYY-MM-DD';
         }
     }
