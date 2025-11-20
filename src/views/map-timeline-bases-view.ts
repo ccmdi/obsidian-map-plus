@@ -11,6 +11,7 @@ import { MapBasesView } from './map-bases-view';
 import { updateMapPoints } from '../map-renderer';
 
 export const MapTimelineBasesViewType = 'map-timeline';
+const MAP_UPDATE_DEBOUNCE_TIME = 50;
 
 interface TimelineMapPoint extends MapPoint {
     date: number;
@@ -35,7 +36,9 @@ export class MapTimelineBasesView extends MapBasesView {
     private dateRangeStart: number = 0;
     private dateRangeEnd: number = Date.now();
     private allTimelineEntries: TimelineMapPoint[] = [];
-
+    private mapUpdateTimeout?: number;
+    private isProgrammaticDateUpdate: boolean = false;
+    
     private isPlaying: boolean = false;
     private playbackInterval: number | null = null;
     private playbackSpeed: number = 1;
@@ -88,7 +91,9 @@ export class MapTimelineBasesView extends MapBasesView {
                 this.dateRangeEnd = timestamp;
                 this.config.set('_dateRangeEnd', timestamp);
                 this.updateSliderFromDate();
-                this.applyTimelineFilter();
+                if (!this.isProgrammaticDateUpdate) {
+                    this.updateMapWithFilteredPoints(this.applyTimelineFilter());
+                }
             }
         });
 
@@ -101,11 +106,24 @@ export class MapTimelineBasesView extends MapBasesView {
         this.sliderEl.value = '100';
 
         this.sliderEl.addEventListener('input', () => {
-            this.stopPlayback(); // Stop playback on manual adjustment
+            this.stopPlayback();
             this.updateDateRange();
             this.config.set('_dateRangeEnd', this.dateRangeEnd);
             this.updateDateInput(dateInputEl);
-            this.applyTimelineFilter();
+            
+            const filteredPoints = this.applyTimelineFilter();
+            this.updateMapWithFilteredPoints(filteredPoints, false);
+        });
+
+        this.sliderEl.addEventListener('change', () => {
+            const filteredPoints = this.applyTimelineFilter();
+            
+            if (this.mapUpdateTimeout) {
+                window.clearTimeout(this.mapUpdateTimeout);
+            }
+            this.mapUpdateTimeout = window.setTimeout(() => {
+                this.updateMapWithFilteredPoints(filteredPoints, true);
+            }, MAP_UPDATE_DEBOUNCE_TIME);
         });
 
         // Expand/collapse toggle
@@ -223,25 +241,28 @@ export class MapTimelineBasesView extends MapBasesView {
     }
 
     private updateDateInput(dateInputEl: HTMLInputElement): void {
-        const date = new Date(this.dateRangeEnd);
-
-        if (isNaN(date.getTime())) return;
-
-        const year = date.getFullYear();
-        const month = this.padNumber(date.getMonth() + 1, 2);
-        const day = this.padNumber(date.getDate(), 2);
-
-        if (this.granularity === 'yearly') {
-            dateInputEl.value = `${year}`;
-            dateInputEl.placeholder = 'YYYY';
-        } else if (this.granularity === 'monthly') {
-            dateInputEl.value = `${year}-${month}`;
-            // eslint-disable-next-line obsidianmd/ui/sentence-case
-            dateInputEl.placeholder = 'YYYY-MM';
-        } else {
-            dateInputEl.value = `${year}-${month}-${day}`;
-            // eslint-disable-next-line obsidianmd/ui/sentence-case
-            dateInputEl.placeholder = 'YYYY-MM-DD';
+        this.isProgrammaticDateUpdate = true;
+        
+        try {
+            const date = new Date(this.dateRangeEnd);
+            if (isNaN(date.getTime())) return;
+    
+            const year = date.getFullYear();
+            const month = this.padNumber(date.getMonth() + 1, 2);
+            const day = this.padNumber(date.getDate(), 2);
+    
+            if (this.granularity === 'yearly') {
+                dateInputEl.value = `${year}`;
+                dateInputEl.placeholder = 'YYYY';
+            } else if (this.granularity === 'monthly') {
+                dateInputEl.value = `${year}-${month}`;
+                dateInputEl.placeholder = 'YYYY-MM';
+            } else {
+                dateInputEl.value = `${year}-${month}-${day}`;
+                dateInputEl.placeholder = 'YYYY-MM-DD';
+            }
+        } finally {
+            this.isProgrammaticDateUpdate = false;
         }
     }
 
@@ -275,7 +296,7 @@ export class MapTimelineBasesView extends MapBasesView {
             this.dateRangeEnd = minDate;
             this.updateSliderFromDate();
             this.config.set('_dateRangeEnd', this.dateRangeEnd);
-            this.applyTimelineFilter();
+            this.updateMapWithFilteredPoints(this.applyTimelineFilter(), false);
         }
 
         this.isPlaying = true;
@@ -304,7 +325,7 @@ export class MapTimelineBasesView extends MapBasesView {
                 this.updateDateInput(dateInputEl);
             }
 
-            this.applyTimelineFilter();
+            this.updateMapWithFilteredPoints(this.applyTimelineFilter(), false);
 
             // Stop at end
             if (this.dateRangeEnd >= maxDate) {
@@ -330,14 +351,11 @@ export class MapTimelineBasesView extends MapBasesView {
         if (this.dateProperty) {
             this.updateTimelineData();
 
-            if (this.deck) {
-                this.applyTimelineFilter();
-            } else {
+            if(!this.deck) {
                 super.loadConfig();
                 super.renderMap();
 
                 this.createSlider();
-                this.applyTimelineFilter();
             }
         } else {
             super.onDataUpdated();
@@ -461,13 +479,7 @@ export class MapTimelineBasesView extends MapBasesView {
     }
 
 
-    private applyTimelineFilter(): void {
-        if (this.allTimelineEntries.length === 0) {
-            // No entries at all, clear the map
-            this.updateMapWithFilteredPoints([]);
-            return;
-        }
-
+    private applyTimelineFilter(): TimelineMapPoint[] {
         let filteredPoints = this.allTimelineEntries.filter(point => {
             const inDateRange = point.date >= this.dateRangeStart && point.date <= this.dateRangeEnd;
             // Entity must have started by the current time
@@ -505,15 +517,13 @@ export class MapTimelineBasesView extends MapBasesView {
                 }
             }
         }
-
-        // Always update, even if empty (to clear markers when no results)
-        this.updateMapWithFilteredPoints(filteredPoints);
+        return filteredPoints;
     }
 
-    private updateMapWithFilteredPoints(points: MapPoint[]): void {
+    private updateMapWithFilteredPoints(points: MapPoint[], updatePosition: boolean = true): void {
         if (!this.deck || !this.data) return;
         const hasConfiguredCenter = this.center[0] !== 0 || this.center[1] !== 0;
-
+        
         updateMapPoints(this.deck, points, {
             containerEl: this.mapEl,
             app: this.app,
@@ -521,12 +531,13 @@ export class MapTimelineBasesView extends MapBasesView {
             tagSettings: this.plugin.tagSettings,
             options: {
                 markerType: this.markerType,
-                center: hasConfiguredCenter ? this.center : undefined,
-                zoom: hasConfiguredCenter ? this.defaultZoom : undefined,
-                autoCenter: false // Don't auto-center when filtering
+                // Only pass center/zoom if we want to update position
+                center: updatePosition && hasConfiguredCenter ? this.center : undefined,
+                zoom: updatePosition && hasConfiguredCenter ? this.defaultZoom : undefined,
+                autoCenter: updatePosition && !hasConfiguredCenter && this.plugin.settings.autoCenter
             }
         });
-
+    
         this.lastPoints = points;
     }
 
