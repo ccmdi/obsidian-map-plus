@@ -75,11 +75,7 @@ export class MapBasesView extends BasesView {
             this.deck.setProps({ width: '100%', height: '100%' });
         }
     }
-
-    public focus(): void {
-        this.containerEl.focus({ preventScroll: true });
-    }
-
+    
     private destroyMap(): void {
         if (this.deck) {
             try {
@@ -129,15 +125,7 @@ export class MapBasesView extends BasesView {
         this.mapHeight = (this.config.get('mapHeight') as number) || DEFAULT_MAP_HEIGHT;
         this.defaultZoom = (this.config.get('defaultZoom') as number) || DEFAULT_MAP_ZOOM;
 
-        const centerVal = this.config.get('center');
-        if (centerVal && typeof centerVal === 'string') {
-            const parts = centerVal.split(',').map(p => parseFloat(p.trim()));
-            this.center = (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]))
-                ? [parts[0], parts[1]]
-                : [0, 0];
-        } else {
-            this.center = [0, 0];
-        }
+        this.center = this.parseLatLngOrZero(this.config.get('center'));
 
         const markerTypeVal = this.config.get('markerType');
         if (markerTypeVal === 'pins' || markerTypeVal === 'dots') {
@@ -154,7 +142,7 @@ export class MapBasesView extends BasesView {
             // Check if tile layer changed specifically - requires full re-render
             const oldConfig = JSON.parse(this.lastConfigState) as Record<string, unknown>;
             if (oldConfig.tileLayer !== this.tileLayer) {
-                this.destroyMap();
+                this.refresh();
             } else {
                 this.lastPoints = []; // Force re-render of layers
             }
@@ -395,30 +383,8 @@ export class MapBasesView extends BasesView {
         if (this.coordinatesProp) {
             try {
                 const value = entry.getValue(this.coordinatesProp);
-                if (value) {
-                    // Handle list values [lat, lng]
-                    if (value instanceof ListValue) {
-                        if (value.length() >= 2) {
-                            const lat = this.parseCoordinate(value.get(0));
-                            const lng = this.parseCoordinate(value.get(1));
-                            if (lat !== null && lng !== null) {
-                                return [lat, lng];
-                            }
-                        }
-                    }
-                    // Handle string values "lat,lng"
-                    else if (value instanceof StringValue) {
-                        const stringData = value.toString().trim();
-                        const parts = stringData.split(',');
-                        if (parts.length >= 2) {
-                            const lat = this.parseCoordinate(parts[0].trim());
-                            const lng = this.parseCoordinate(parts[1].trim());
-                            if (lat !== null && lng !== null) {
-                                return [lat, lng];
-                            }
-                        }
-                    }
-                }
+                const coords = this.parseLatLng(value);
+                if (coords) return coords;
             } catch (error) {
                 console.error(`Error extracting coordinates for ${entry.file.name}:`, error);
             }
@@ -483,54 +449,54 @@ export class MapBasesView extends BasesView {
         return null;
     }
 
+    private parseLatLng(value: unknown): [number, number] | null {
+        // Handle ListValue [lat, lng]
+        if (value instanceof ListValue && value.length() >= 2) {
+            const lat = this.parseCoordinate(value.get(0));
+            const lng = this.parseCoordinate(value.get(1));
+            if (lat !== null && lng !== null) {
+                return [lat, lng];
+            }
+        }
+
+        // Handle StringValue or string "lat,lng"
+        if (value instanceof StringValue || typeof value === 'string') {
+            const str = value instanceof StringValue ? value.toString() : value;
+            const parts = str.split(',').map(p => parseFloat(p.trim()));
+            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                return [parts[0], parts[1]];
+            }
+        }
+
+        return null;
+    }
+
+    private parseLatLngOrZero(value: unknown): [number, number] {
+        return this.parseLatLng(value) ?? [0, 0];
+    }
+
     private extractPolygonCoordinates(value: unknown): [number, number][] | null {
         try {
             // Handle ListValue (array from frontmatter)
             if (value instanceof ListValue) {
                 const coords: [number, number][] = [];
                 for (let i = 0; i < value.length(); i++) {
-                    const item = value.get(i);
-
-                    // Each item should be a list of [lat, lng]
-                    if (item instanceof ListValue && item.length() >= 2) {
-                        const lat = this.parseCoordinate(item.get(0));
-                        const lng = this.parseCoordinate(item.get(1));
-                        if (lat !== null && lng !== null) {
-                            coords.push([lat, lng]);
-                        }
-                    }
-                    // Or could be a string "lat,lng"
-                    else if (item instanceof StringValue) {
-                        const parts = item.toString().split(',');
-                        if (parts.length >= 2) {
-                            const lat = this.parseCoordinate(parts[0].trim());
-                            const lng = this.parseCoordinate(parts[1].trim());
-                            if (lat !== null && lng !== null) {
-                                coords.push([lat, lng]);
-                            }
-                        }
-                    }
+                    const coord = this.parseLatLng(value.get(i));
+                    if (coord) coords.push(coord);
                 }
                 return coords.length > 0 ? coords : null;
             }
 
-            // Handle string value with multiple coordinate pairs
+            // Handle string value as JSON array
             if (value instanceof StringValue) {
-                const stringData = value.toString().trim();
-                // Try to parse as JSON array
                 try {
                     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                    const parsed = JSON.parse(stringData);
+                    const parsed = JSON.parse(value.toString().trim());
                     if (Array.isArray(parsed)) {
                         const coords: [number, number][] = [];
                         for (const item of parsed) {
-                            if (Array.isArray(item) && item.length >= 2) {
-                                const lat = this.parseCoordinate(item[0]);
-                                const lng = this.parseCoordinate(item[1]);
-                                if (lat !== null && lng !== null) {
-                                    coords.push([lat, lng]);
-                                }
-                            }
+                            const coord = this.parseLatLng(item);
+                            if (coord) coords.push(coord);
                         }
                         return coords.length > 0 ? coords : null;
                     }
