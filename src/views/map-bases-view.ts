@@ -146,7 +146,8 @@ export class MapBasesView extends BasesView {
         const tileLayerChanged = oldValues.tileLayer !== this.tileLayer;
         const renderConfigChanged = oldValues.coordinates !== this.coordinatesProp
             || oldValues.polygon !== this.polygonProp
-            || oldValues.markerType !== this.markerType;
+            || oldValues.markerType !== this.markerType; 
+            // TODO: not sure if we care if it's the first render or not, something to consider
 
         if (this.deck) {
             if (tileLayerChanged) {

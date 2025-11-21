@@ -342,26 +342,31 @@ export class MapTimelineBasesView extends MapBasesView {
     }
 
     public onDataUpdated(): void {
-        this.loadConfig();
+        const configChanged = this.loadConfig();
 
         if (this.dateProperty) {
             this.updateTimelineData();
 
             if (this.deck) {
-                this.updateMapWithFilteredPoints(this.applyTimelineFilter());
+                this.updateMapWithFilteredPoints(this.applyTimelineFilter(), !configChanged);
             } else {
-                super.loadConfig();
                 super.renderMap();
                 this.createSlider();
-                this.updateMapWithFilteredPoints(this.applyTimelineFilter());
+                this.updateMapWithFilteredPoints(this.applyTimelineFilter(), !configChanged);
             }
         } else {
             super.onDataUpdated();
         }
     }
 
-    protected loadConfig(): void {
-        super.loadConfig();
+    protected loadConfig(): boolean {
+        let configChanged = super.loadConfig();
+
+        const oldValues = {
+            dateProperty: this.dateProperty,
+            endDateProperty: this.endDateProperty,
+            uniquenessProperty: this.uniquenessProperty,
+        }
 
         this.dateProperty = this.config.getAsPropertyId('dateProperty');
         this.endDateProperty = this.config.getAsPropertyId('endDateProperty');
@@ -381,6 +386,10 @@ export class MapTimelineBasesView extends MapBasesView {
         if (savedDateRangeEnd && typeof savedDateRangeEnd === 'number') {
             this.dateRangeEnd = savedDateRangeEnd;
         }
+
+        configChanged = configChanged || this.dateProperty !== oldValues.dateProperty || this.endDateProperty !== oldValues.endDateProperty || this.uniquenessProperty !== oldValues.uniquenessProperty;
+
+        return configChanged;
     }
 
     private updateTimelineData(): void {
