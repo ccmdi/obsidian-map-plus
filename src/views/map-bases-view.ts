@@ -29,6 +29,7 @@ export class MapBasesView extends BasesView {
     protected deck: Deck<MapViewType[]> | null = null;
     protected coordinatesProp: BasesPropertyId | null = null;
     protected coverProp: BasesPropertyId | null = null;
+    protected polygonProp: BasesPropertyId | null = null;
     private mapHeight: number = DEFAULT_MAP_HEIGHT;
     protected defaultZoom: number = DEFAULT_MAP_ZOOM;
     protected center: [number, number] = [0, 0];
@@ -114,6 +115,7 @@ export class MapBasesView extends BasesView {
     protected loadConfig(): void {
         this.coordinatesProp = this.config.getAsPropertyId('coordinates');
         this.coverProp = this.config.getAsPropertyId('coverImage');
+        this.polygonProp = this.config.getAsPropertyId('polygonPoints');
 
         const heightVal = this.config.get('mapHeight');
         if (heightVal && typeof heightVal === 'number') {
@@ -361,6 +363,16 @@ export class MapBasesView extends BasesView {
                 point.properties = properties;
             }
 
+            if (this.polygonProp) {
+                const polygonVal = entry.getValue(this.polygonProp);
+                if (polygonVal) {
+                    const polygonCoords = this.extractPolygonCoordinates(polygonVal);
+                    if (polygonCoords) {
+                        point.polygon = polygonCoords;
+                    }
+                }
+            }
+
             point = {...point, ...callback?.(entry)};
 
             points.push(point);
@@ -461,6 +473,67 @@ export class MapBasesView extends BasesView {
         return null;
     }
 
+    private extractPolygonCoordinates(value: unknown): [number, number][] | null {
+        try {
+            // Handle ListValue (array from frontmatter)
+            if (value instanceof ListValue) {
+                const coords: [number, number][] = [];
+                for (let i = 0; i < value.length(); i++) {
+                    const item = value.get(i);
+
+                    // Each item should be a list of [lat, lng]
+                    if (item instanceof ListValue && item.length() >= 2) {
+                        const lat = this.parseCoordinate(item.get(0));
+                        const lng = this.parseCoordinate(item.get(1));
+                        if (lat !== null && lng !== null) {
+                            coords.push([lat, lng]);
+                        }
+                    }
+                    // Or could be a string "lat,lng"
+                    else if (item instanceof StringValue) {
+                        const parts = item.toString().split(',');
+                        if (parts.length >= 2) {
+                            const lat = this.parseCoordinate(parts[0].trim());
+                            const lng = this.parseCoordinate(parts[1].trim());
+                            if (lat !== null && lng !== null) {
+                                coords.push([lat, lng]);
+                            }
+                        }
+                    }
+                }
+                return coords.length > 0 ? coords : null;
+            }
+
+            // Handle string value with multiple coordinate pairs
+            if (value instanceof StringValue) {
+                const stringData = value.toString().trim();
+                // Try to parse as JSON array
+                try {
+                    const parsed = JSON.parse(stringData);
+                    if (Array.isArray(parsed)) {
+                        const coords: [number, number][] = [];
+                        for (const item of parsed) {
+                            if (Array.isArray(item) && item.length >= 2) {
+                                const lat = this.parseCoordinate(item[0]);
+                                const lng = this.parseCoordinate(item[1]);
+                                if (lat !== null && lng !== null) {
+                                    coords.push([lat, lng]);
+                                }
+                            }
+                        }
+                        return coords.length > 0 ? coords : null;
+                    }
+                } catch {
+                    // Not JSON, ignore
+                }
+            }
+        } catch (error) {
+            console.error('Error extracting polygon coordinates:', error);
+        }
+
+        return null;
+    }
+
     static getViewOptions(): ViewOption[] {
         return [
             {
@@ -518,6 +591,13 @@ export class MapBasesView extends BasesView {
                         displayName: 'Cover image property',
                         type: 'property',
                         key: 'coverImage',
+                        filter: (prop) => !prop.startsWith('file.'),
+                        placeholder: 'Property',
+                    },
+                    {
+                        displayName: 'Polygon points property',
+                        type: 'property',
+                        key: 'polygonPoints',
                         filter: (prop) => !prop.startsWith('file.'),
                         placeholder: 'Property',
                     },

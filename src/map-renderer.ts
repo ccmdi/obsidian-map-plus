@@ -1,6 +1,6 @@
 import { App, TFile, setIcon } from 'obsidian';
 import { Deck, PickingInfo, MapViewState, FlyToInterpolator } from '@deck.gl/core';
-import { BitmapLayer, IconLayer, ScatterplotLayer } from '@deck.gl/layers';
+import { BitmapLayer, IconLayer, ScatterplotLayer, PolygonLayer } from '@deck.gl/layers';
 import { TileLayer } from '@deck.gl/geo-layers';
 import type { TileLayerProps, _Tile2DHeader as Tile2DHeader } from '@deck.gl/geo-layers';
 import type { MjolnirEvent } from 'mjolnir.js';
@@ -31,6 +31,7 @@ export interface MapPoint {
     file?: TFile;
     tags?: string[];
     properties?: MapProperty[];
+    polygon?: [number, number][];
 }
 
 interface TileIndex {
@@ -219,6 +220,56 @@ function calculateBounds(points: MapPoint[], containerEl: HTMLElement): { latitu
     };
 }
 
+interface PolygonData {
+    polygon: [number, number][];
+    color: [number, number, number];
+    point: MapPoint;
+}
+
+function createPolygonLayer(
+    points: MapPoint[],
+    tagSettings: MapTagSettings | undefined,
+    defaultColor: string,
+    options: MapRendererOptions['options'],
+    app: App
+) {
+    const polygonData: PolygonData[] = [];
+
+    for (const point of points) {
+        if (point.polygon && point.polygon.length > 0) {
+            // Convert lat,lng to lng,lat for deck.gl
+            const polygon: [number, number][] = point.polygon.map(([lat, lng]) => [lng, lat]);
+
+            polygonData.push({
+                polygon,
+                color: parseColor(getPointColor(point, tagSettings, defaultColor)),
+                point,
+            });
+        }
+    }
+
+    if (polygonData.length === 0) return null;
+
+    return new PolygonLayer({
+        id: 'polygon-layer',
+        data: polygonData,
+        pickable: true,
+        stroked: true,
+        filled: true,
+        wireframe: false,
+        lineWidthMinPixels: 2,
+        getPolygon: (d: PolygonData) => d.polygon,
+        getFillColor: (d: PolygonData) => [...d.color, 100] as [number, number, number, number],
+        getLineColor: (d: PolygonData) => d.color,
+        getLineWidth: 2,
+        onClick: (info: PickingInfo<PolygonData>, event: MjolnirEvent) => {
+            if (info.object) {
+                handlePointClick({ ...info, object: { position: [0, 0], color: [0, 0, 0], radius: 0, point: info.object.point } }, event, options, app);
+            }
+        },
+    });
+}
+
 function createMarkerLayer(
     data: DeckDataPoint[],
     markerType: 'pins' | 'dots',
@@ -306,8 +357,13 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
     const tileLayer = currentLayers[0];
 
     const markerLayer = createMarkerLayer(deckData, markerType, settings, tagSettings, options, app);
+    const polygonLayer = createPolygonLayer(points, tagSettings, defaultColor, options, app);
 
-    deck.setProps({ layers: [tileLayer, markerLayer] });
+    const layers = [tileLayer];
+    if (polygonLayer) layers.push(polygonLayer);
+    layers.push(markerLayer);
+
+    deck.setProps({ layers });
 
     let shouldTransition = false;
     let targetViewState = null;
@@ -566,8 +622,8 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
                 currentCursor = 'grab';
             }
         },
-        layers: [
-            new TileLayer({
+        layers: (() => {
+            const tileLayerInstance = new TileLayer({
                 id: 'tile-layer',
                 data: tileLayer,
                 minZoom: 0,
@@ -608,9 +664,17 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
                         img.src = url;
                     });
                 },
-            }),
-            createMarkerLayer(deckData, markerType, settings, tagSettings, options, app),
-        ],
+            });
+
+            const markerLayer = createMarkerLayer(deckData, markerType, settings, tagSettings, options, app);
+            const polygonLayer = createPolygonLayer(points, tagSettings, markerColor, options, app);
+
+            const layers = [tileLayerInstance];
+            if (polygonLayer) layers.push(polygonLayer);
+            layers.push(markerLayer);
+
+            return layers;
+        })(),
     });
 
     return deck;
