@@ -8,7 +8,6 @@ import {
 import { MapPoint } from '../map-renderer';
 import MapPlugin from '../main';
 import { MapBasesView } from './map-bases-view';
-import { updateMapPoints } from '../map-renderer';
 
 export const MapTimelineBasesViewType = 'map-timeline';
 const MAP_UPDATE_DEBOUNCE_TIME = 50;
@@ -54,6 +53,11 @@ export class MapTimelineBasesView extends MapBasesView {
     onunload() {
         super.onunload();
         this.destroySlider();
+    }
+
+    refresh(): void {
+        this.destroySlider();
+        super.refresh();
     }
 
     private createSlider(): void {

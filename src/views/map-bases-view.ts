@@ -55,10 +55,7 @@ export class MapBasesView extends BasesView {
 
         this.register(
             this.containerEl.onWindowMigrated(() => {
-                if (this.deck) {
-                    this.destroyMap();
-                    this.renderMap();
-                }
+                this.refresh();
             })
         );
     }
@@ -515,6 +512,7 @@ export class MapBasesView extends BasesView {
                 const stringData = value.toString().trim();
                 // Try to parse as JSON array
                 try {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                     const parsed = JSON.parse(stringData);
                     if (Array.isArray(parsed)) {
                         const coords: [number, number][] = [];
