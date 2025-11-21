@@ -90,7 +90,7 @@ export class MapTimelineBasesView extends MapBasesView {
                 this.dateRangeEnd = timestamp;
                 this.config.set('_dateRangeEnd', timestamp);
                 this.updateSliderFromDate();
-                this.updateMapWithFilteredPoints(this.applyTimelineFilter());
+                this.updateRenderedPoints(this.applyTimelineFilter(), false);
             }
         });
 
@@ -111,7 +111,7 @@ export class MapTimelineBasesView extends MapBasesView {
             this.updateDateInput(dateInputEl);
             
             const filteredPoints = this.applyTimelineFilter();
-            this.updateMapWithFilteredPoints(filteredPoints, false);
+            this.updateRenderedPoints(filteredPoints, false);
         });
 
         this.sliderEl.addEventListener('change', () => {
@@ -123,7 +123,7 @@ export class MapTimelineBasesView extends MapBasesView {
                 window.clearTimeout(this.mapUpdateTimeout);
             }
             this.mapUpdateTimeout = window.setTimeout(() => {
-                this.updateMapWithFilteredPoints(filteredPoints, true);
+                this.updateRenderedPoints(filteredPoints, true);
             }, MAP_UPDATE_DEBOUNCE_TIME);
         });
 
@@ -265,7 +265,9 @@ export class MapTimelineBasesView extends MapBasesView {
 
 
     private destroySlider(): void {
-        this.stopPlayback();
+        if (this.isPlaying) {
+            this.stopPlayback();
+        }
         if (this.sliderEl) {
             this.sliderEl.closest('.bases-timeline-slider')?.remove();
             this.sliderEl = null;
@@ -292,7 +294,7 @@ export class MapTimelineBasesView extends MapBasesView {
         if (this.dateRangeEnd >= maxDate) {
             this.dateRangeEnd = minDate;
             this.updateSliderFromDate();
-            this.updateMapWithFilteredPoints(this.applyTimelineFilter(), false);
+            this.updateRenderedPoints(this.applyTimelineFilter(), false);
         }
 
         this.isPlaying = true;
@@ -320,7 +322,7 @@ export class MapTimelineBasesView extends MapBasesView {
                 this.updateDateInput(dateInputEl);
             }
 
-            this.updateMapWithFilteredPoints(this.applyTimelineFilter(), false);
+            this.updateRenderedPoints(this.applyTimelineFilter(), false);
 
             // Stop at end
             if (this.dateRangeEnd >= maxDate) {
@@ -347,14 +349,17 @@ export class MapTimelineBasesView extends MapBasesView {
         if (this.dateProperty) {
             this.updateTimelineData();
 
-            if (this.deck) {
-                this.updateMapWithFilteredPoints(this.applyTimelineFilter(), !configChanged);
-            } else {
+            if (!this.deck) {
                 super.renderMap();
-                this.createSlider();
-                this.updateMapWithFilteredPoints(this.applyTimelineFilter(), !configChanged);
             }
+
+            if (!this.sliderEl) {
+                this.createSlider();
+            }
+
+            this.updateRenderedPoints(this.applyTimelineFilter(), !configChanged);
         } else {
+            this.destroySlider();
             super.onDataUpdated();
         }
     }
@@ -525,27 +530,6 @@ export class MapTimelineBasesView extends MapBasesView {
             }
         }
         return filteredPoints;
-    }
-
-    private updateMapWithFilteredPoints(points: MapPoint[], updatePosition: boolean = true): void {
-        if (!this.deck || !this.data) return;
-        const hasConfiguredCenter = this.center[0] !== 0 || this.center[1] !== 0;
-        
-        updateMapPoints(this.deck, points, {
-            containerEl: this.mapEl,
-            app: this.app,
-            settings: this.plugin.settings,
-            tagSettings: this.plugin.tagSettings,
-            options: {
-                markerType: this.markerType,
-                // Only pass center/zoom if we want to update position
-                center: updatePosition && hasConfiguredCenter ? this.center : undefined,
-                zoom: updatePosition && hasConfiguredCenter ? this.defaultZoom : undefined,
-                autoCenter: updatePosition && !hasConfiguredCenter && this.plugin.settings.autoCenter
-            }
-        });
-    
-        this.lastPoints = points;
     }
 
     static getViewOptions(): ViewOption[] {

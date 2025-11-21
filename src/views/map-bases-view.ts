@@ -278,8 +278,6 @@ export class MapBasesView extends BasesView {
         return false;
     }
 
-    
-
     private updatePointsOnly(configChanged = false): void {
         if (!this.deck || !this.data) return;
 
@@ -290,6 +288,12 @@ export class MapBasesView extends BasesView {
             return;
         }
         const locationsChanged = configChanged ? false : haveLocationsChanged(points, this.lastPoints);
+
+        this.updateRenderedPoints(points, locationsChanged);
+    }
+
+    protected updateRenderedPoints(points: MapPoint[], locationsChanged: boolean): void {
+        if (!this.deck) return;
 
         this.lastPoints = points;
 
