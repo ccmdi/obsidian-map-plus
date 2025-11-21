@@ -533,6 +533,7 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
             touchRotate: false,
             keyboard: false,
             dragRotate: false,
+            dragPan: true,
         },
         views: [new MapViewType({
             repeat: true,

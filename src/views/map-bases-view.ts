@@ -51,6 +51,15 @@ export class MapBasesView extends BasesView {
                 this.refresh();
             })
         );
+
+        this.register(
+            this.containerEl.onWindowMigrated(() => {
+                if (this.deck) {
+                    this.destroyMap();
+                    this.renderMap();
+                }
+            })
+        );
     }
 
     refresh(): void {
