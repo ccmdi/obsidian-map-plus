@@ -113,6 +113,9 @@ export class MapBasesView extends BasesView {
     }
 
     protected loadConfig(): void {
+        const oldCoordinatesProp = this.coordinatesProp;
+        const oldPolygonProp = this.polygonProp;
+
         this.coordinatesProp = this.config.getAsPropertyId('coordinates');
         this.coverProp = this.config.getAsPropertyId('coverImage');
         this.polygonProp = this.config.getAsPropertyId('polygonPoints');
@@ -139,6 +142,7 @@ export class MapBasesView extends BasesView {
             this.center = [0, 0]; // Reset if not configured
         }
 
+        const oldMarkerType = this.markerType;
         const markerTypeVal = this.config.get('markerType');
         if (markerTypeVal === 'pins' || markerTypeVal === 'dots') {
             this.markerType = markerTypeVal;
@@ -155,6 +159,11 @@ export class MapBasesView extends BasesView {
         // If tile layer changed, destroy and recreate map
         if (oldTileLayer !== this.tileLayer && this.deck) {
             this.destroyMap();
+        }
+
+        // If coordinates, polygon property, or marker type changed, force update
+        if ((oldCoordinatesProp !== this.coordinatesProp || oldPolygonProp !== this.polygonProp || oldMarkerType !== this.markerType) && this.deck) {
+            this.lastPoints = []; // Clear cache to force update
         }
     }
 
