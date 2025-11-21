@@ -450,7 +450,7 @@ export class MapBasesView extends BasesView {
     }
 
     private parseLatLng(value: unknown): [number, number] | null {
-        // Handle ListValue [lat, lng]
+        // Handle ListValue from frontmatter: [40.7128, -74.0060]
         if (value instanceof ListValue && value.length() >= 2) {
             const lat = this.parseCoordinate(value.get(0));
             const lng = this.parseCoordinate(value.get(1));
@@ -459,7 +459,16 @@ export class MapBasesView extends BasesView {
             }
         }
 
-        // Handle StringValue or string "lat,lng"
+        // Handle plain JavaScript array from JSON.parse: [40.7128, -74.0060]
+        if (Array.isArray(value) && value.length >= 2) {
+            const lat = this.parseCoordinate(value[0]);
+            const lng = this.parseCoordinate(value[1]);
+            if (lat !== null && lng !== null) {
+                return [lat, lng];
+            }
+        }
+
+        // Handle string: "40.7128, -74.0060" or StringValue wrapper
         if (value instanceof StringValue || typeof value === 'string') {
             const str = value instanceof StringValue ? value.toString() : value;
             const parts = str.split(',').map(p => parseFloat(p.trim()));
