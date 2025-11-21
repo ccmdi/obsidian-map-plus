@@ -102,69 +102,61 @@ export class MapBasesView extends BasesView {
     }
 
     public onDataUpdated(): void {
-        this.loadConfig();
+        const configChanged = this.loadConfig();
 
         // If map exists, just update points. Otherwise create map.
         if (this.deck) {
-            this.updatePointsOnly();
+            this.updatePointsOnly(configChanged);
         } else {
             this.renderMap();
         }
     }
 
-    protected loadConfig(): void {
-        const oldCoordinatesProp = this.coordinatesProp;
-        const oldPolygonProp = this.polygonProp;
+    protected loadConfig(): boolean {
+        const oldValues = {
+            coordinates: this.coordinatesProp,
+            polygon: this.polygonProp,
+            markerType: this.markerType,
+            tileLayer: this.tileLayer,
+        };
 
         this.coordinatesProp = this.config.getAsPropertyId('coordinates');
         this.coverProp = this.config.getAsPropertyId('coverImage');
         this.polygonProp = this.config.getAsPropertyId('polygonPoints');
-
-        const heightVal = this.config.get('mapHeight');
-        if (heightVal && typeof heightVal === 'number') {
-            this.mapHeight = heightVal;
-        }
-
-        const zoomVal = this.config.get('defaultZoom');
-        if (zoomVal && typeof zoomVal === 'number') {
-            this.defaultZoom = zoomVal;
-        }
+        this.mapHeight = (this.config.get('mapHeight') as number) || DEFAULT_MAP_HEIGHT;
+        this.defaultZoom = (this.config.get('defaultZoom') as number) || DEFAULT_MAP_ZOOM;
 
         const centerVal = this.config.get('center');
         if (centerVal && typeof centerVal === 'string') {
             const parts = centerVal.split(',').map(p => parseFloat(p.trim()));
-            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                this.center = [parts[0], parts[1]];
-            } else {
-                this.center = [0, 0]; // Reset if invalid
-            }
+            this.center = (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1]))
+                ? [parts[0], parts[1]]
+                : [0, 0];
         } else {
-            this.center = [0, 0]; // Reset if not configured
+            this.center = [0, 0];
         }
 
-        const oldMarkerType = this.markerType;
         const markerTypeVal = this.config.get('markerType');
         if (markerTypeVal === 'pins' || markerTypeVal === 'dots') {
             this.markerType = markerTypeVal;
         }
 
-        const tileLayerVal = this.config.get('tileLayer');
-        const oldTileLayer = this.tileLayer;
-        if (tileLayerVal && typeof tileLayerVal === 'string') {
-            this.tileLayer = tileLayerVal;
-        } else {
-            this.tileLayer = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
+        this.tileLayer = (this.config.get('tileLayer') as string) || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
+
+        const tileLayerChanged = oldValues.tileLayer !== this.tileLayer;
+        const renderConfigChanged = oldValues.coordinates !== this.coordinatesProp
+            || oldValues.polygon !== this.polygonProp
+            || oldValues.markerType !== this.markerType;
+
+        if (this.deck) {
+            if (tileLayerChanged) {
+                this.destroyMap();
+            } else if (renderConfigChanged) {
+                this.lastPoints = [];
+            }
         }
 
-        // If tile layer changed, destroy and recreate map
-        if (oldTileLayer !== this.tileLayer && this.deck) {
-            this.destroyMap();
-        }
-
-        // If coordinates, polygon property, or marker type changed, force update
-        if ((oldCoordinatesProp !== this.coordinatesProp || oldPolygonProp !== this.polygonProp || oldMarkerType !== this.markerType) && this.deck) {
-            this.lastPoints = []; // Clear cache to force update
-        }
+        return renderConfigChanged;
     }
 
     protected renderMap(): void {
@@ -287,7 +279,7 @@ export class MapBasesView extends BasesView {
 
     
 
-    private updatePointsOnly(): void {
+    private updatePointsOnly(configChanged = false): void {
         if (!this.deck || !this.data) return;
 
         const points = this.extractPointsFromData();
@@ -296,8 +288,8 @@ export class MapBasesView extends BasesView {
             console.warn('onDataUpdated triggered but points are unchanged - skipping update');
             return;
         }
-        const locationsChanged = haveLocationsChanged(points, this.lastPoints);
-        
+        const locationsChanged = configChanged ? false : haveLocationsChanged(points, this.lastPoints);
+
         this.lastPoints = points;
 
         const hasConfiguredCenter = this.center[0] !== 0 || this.center[1] !== 0;
