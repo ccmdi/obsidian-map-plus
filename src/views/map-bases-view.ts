@@ -37,6 +37,7 @@ export class MapBasesView extends BasesView {
     private tileLayer: string = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
     private savedViewState: { latitude: number; longitude: number; zoom: number } | null = null;
     protected lastPoints: MapPoint[] = [];
+    private lastConfigState: string = '';
 
     constructor(controller: QueryController, scrollEl: HTMLElement, plugin: MapPlugin) {
         super(controller);
@@ -109,14 +110,19 @@ export class MapBasesView extends BasesView {
         }
     }
 
-    protected loadConfig(): boolean {
-        const oldValues = {
+    protected getConfigState(): Record<string, unknown> {
+        return {
             coordinates: this.coordinatesProp,
+            cover: this.coverProp,
             polygon: this.polygonProp,
             markerType: this.markerType,
             tileLayer: this.tileLayer,
+            center: this.center,
+            zoom: this.defaultZoom,
         };
+    }
 
+    protected loadConfig(): boolean {
         this.coordinatesProp = this.config.getAsPropertyId('coordinates');
         this.coverProp = this.config.getAsPropertyId('coverImage');
         this.polygonProp = this.config.getAsPropertyId('polygonPoints');
@@ -140,21 +146,22 @@ export class MapBasesView extends BasesView {
 
         this.tileLayer = (this.config.get('tileLayer') as string) || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
 
-        const tileLayerChanged = oldValues.tileLayer !== this.tileLayer;
-        const renderConfigChanged = oldValues.coordinates !== this.coordinatesProp
-            || oldValues.polygon !== this.polygonProp
-            || oldValues.markerType !== this.markerType; 
-            // TODO: not sure if we care if it's the first render or not, something to consider
+        // Serialize current config state (subclasses can override getConfigState)
+        const currentConfigState = JSON.stringify(this.getConfigState());
+        const configChanged = this.lastConfigState !== '' && this.lastConfigState !== currentConfigState;
 
-        if (this.deck) {
-            if (tileLayerChanged) {
+        if (this.deck && configChanged) {
+            // Check if tile layer changed specifically - requires full re-render
+            const oldConfig = JSON.parse(this.lastConfigState) as Record<string, unknown>;
+            if (oldConfig.tileLayer !== this.tileLayer) {
                 this.destroyMap();
-            } else if (renderConfigChanged) {
-                this.lastPoints = [];
+            } else {
+                this.lastPoints = []; // Force re-render of layers
             }
         }
 
-        return renderConfigChanged;
+        this.lastConfigState = currentConfigState;
+        return configChanged;
     }
 
     protected renderMap(): void {

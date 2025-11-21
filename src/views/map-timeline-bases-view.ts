@@ -368,15 +368,17 @@ export class MapTimelineBasesView extends MapBasesView {
         }
     }
 
-    protected loadConfig(): boolean {
-        let configChanged = super.loadConfig();
-
-        const oldValues = {
+    protected getConfigState(): Record<string, unknown> {
+        return {
+            ...super.getConfigState(),
             dateProperty: this.dateProperty,
             endDateProperty: this.endDateProperty,
             uniquenessProperty: this.uniquenessProperty,
-        }
+            uniquenessMode: this.uniquenessMode,
+        };
+    }
 
+    protected loadConfig(): boolean {
         this.dateProperty = this.config.getAsPropertyId('dateProperty');
         this.endDateProperty = this.config.getAsPropertyId('endDateProperty');
         this.uniquenessProperty = this.config.getAsPropertyId('uniquenessProperty');
@@ -396,9 +398,7 @@ export class MapTimelineBasesView extends MapBasesView {
             this.dateRangeEnd = savedDateRangeEnd;
         }
 
-        configChanged = configChanged || this.dateProperty !== oldValues.dateProperty || this.endDateProperty !== oldValues.endDateProperty || this.uniquenessProperty !== oldValues.uniquenessProperty;
-
-        return configChanged;
+        return super.loadConfig();
     }
 
     private updateTimelineData(): void {
