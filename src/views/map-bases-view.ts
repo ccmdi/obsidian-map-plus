@@ -284,12 +284,12 @@ export class MapBasesView extends BasesView {
             console.warn('onDataUpdated triggered but points are unchanged - skipping update');
             return;
         }
-        const locationsChanged = configChanged ? false : haveLocationsChanged(points, this.lastPoints);
+        const locationsChanged = haveLocationsChanged(points, this.lastPoints);
 
-        this.updateRenderedPoints(points, locationsChanged);
+        this.updateRenderedPoints(points, locationsChanged, configChanged);
     }
 
-    protected updateRenderedPoints(points: MapPoint[], locationsChanged: boolean): void {
+    protected updateRenderedPoints(points: MapPoint[], locationsChanged: boolean = false, configChanged: boolean = false): void {
         if (!this.deck) return;
 
         this.lastPoints = points;
@@ -305,7 +305,7 @@ export class MapBasesView extends BasesView {
                 markerType: this.markerType,
                 center: hasConfiguredCenter ? this.center : undefined,
                 zoom: hasConfiguredCenter ? this.defaultZoom : undefined,
-                autoCenter: this.plugin.settings.autoCenter && !hasConfiguredCenter && locationsChanged
+                autoCenter: this.plugin.settings.autoCenter && !hasConfiguredCenter && locationsChanged && !configChanged
             }
         });
     }
