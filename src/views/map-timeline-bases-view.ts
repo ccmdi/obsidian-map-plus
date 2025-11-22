@@ -26,7 +26,7 @@ export class MapTimelineBasesView extends MapBasesView {
 
     private sliderEl: HTMLInputElement | null = null;
     private playButton: HTMLButtonElement | null = null;
-
+    // private liveUpdateTimeout?: number;
     private allTimelineEntries: TimelineMapPoint[] = [];
     private mapUpdateTimeout?: number;
     
@@ -148,9 +148,6 @@ export class MapTimelineBasesView extends MapBasesView {
             }
             this.updateDateRange();
             this.updateDateInput(dateInputEl);
-            
-            const filteredPoints = this.applyTimelineFilter();
-            this.updateRenderedPoints(filteredPoints, false);
         });
 
         this.sliderEl.addEventListener('change', () => {
