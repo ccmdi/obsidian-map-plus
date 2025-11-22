@@ -156,8 +156,6 @@ export class MapTimelineBasesView extends MapBasesView {
         this.sliderEl.addEventListener('change', () => {
             const filteredPoints = this.applyTimelineFilter();
 
-            this.setDateRangeEnd(this.getDateRangeEnd());
-            
             if (this.mapUpdateTimeout) {
                 window.clearTimeout(this.mapUpdateTimeout);
             }
@@ -388,7 +386,6 @@ export class MapTimelineBasesView extends MapBasesView {
     }
 
     public onDataUpdated(): void {
-        this.loadConfig();
         if (this.getDateProperty()) {
             this.updateTimelineData();
 
@@ -405,21 +402,6 @@ export class MapTimelineBasesView extends MapBasesView {
             this.destroySlider();
             super.onDataUpdated();
         }
-    }
-
-    protected getConfigState(): Record<string, unknown> {
-        return {
-            ...super.getConfigState(),
-            dateProperty: this.getDateProperty(),
-            endDateProperty: this.getEndDateProperty(),
-            uniquenessProperty: this.getUniquenessProperty(),
-            uniquenessMode: this.getUniquenessMode(),
-        };
-    }
-
-    protected loadConfig(): boolean {
-        // No longer need to load into class properties
-        return super.loadConfig();
     }
 
     private updateTimelineData(): void {
