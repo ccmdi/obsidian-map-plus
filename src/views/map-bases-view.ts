@@ -48,6 +48,7 @@ export class MapBasesView extends BasesView {
             })
         );
 
+        //TODO: maximizing in other window still breaks WebGL context
         this.register(
             this.containerEl.onWindowMigrated(() => {
                 this.refresh();
@@ -152,7 +153,7 @@ export class MapBasesView extends BasesView {
     public onDataUpdated(): void {
         // If map exists, just update points. Otherwise create map.
         if (this.deck) {
-            this.updatePointsOnly();
+            this.updateMap();
         } else {
             this.renderMap();
         }
@@ -278,7 +279,7 @@ export class MapBasesView extends BasesView {
         return false;
     }
 
-    private updatePointsOnly(): void {
+    private updateMap(): void {
         if (!this.deck || !this.data) return;
 
         const points = this.extractPointsFromData();
