@@ -63,6 +63,7 @@ export interface MapRendererOptions {
         markerSize?: number;
         markerColor?: string;
         tileLayer?: string;
+        imageBounds?: [[number, number], [number, number]];
         autoCenter?: boolean;
         onMarkerClick?: (point: MapPoint, event: MjolnirEvent) => void;
         onTilesLoaded?: () => void;
@@ -403,7 +404,7 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
     }
 }
 
-export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[]> {
+export async function createMapRenderer(config: MapRendererOptions): Promise<Deck<MapViewType[]>> {
     const { containerEl, points, app, settings, tagSettings, options } = config;
     containerEl.addClass('map-container');
 
@@ -412,10 +413,80 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
     const markerColor = options.markerColor || 'var(--color-accent)';
     const tileLayer = options.tileLayer || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
 
+    // Detect if tileLayer is a local file (no protocol) or URL
+    const isLocalImage = !tileLayer.startsWith('http://') && !tileLayer.startsWith('https://');
+
     containerEl.empty();
     containerEl.style.setProperty('--bases-map-height', options.height || '100%');
 
     const mapCanvas = containerEl.createEl('canvas', { cls: 'map-canvas' });
+
+    // Pre-load background layer
+    let backgroundLayer;
+    if (isLocalImage && options.imageBounds) {
+        try {
+            const file = app.vault.getAbstractFileByPath(tileLayer);
+            if (file && file instanceof TFile) {
+                const resourcePath = app.vault.getResourcePath(file);
+                const [[minLat, minLng], [maxLat, maxLng]] = options.imageBounds;
+
+                backgroundLayer = new BitmapLayer({
+                    id: 'background-image',
+                    image: resourcePath,
+                    bounds: [minLng, minLat, maxLng, maxLat],
+                    pickable: false,
+                });
+            } else {
+                console.error('Image file not found:', tileLayer);
+            }
+        } catch (error) {
+            console.error('Error loading local image:', error);
+        }
+    }
+
+    if (!backgroundLayer) {
+        // Use tile layer (default behavior)
+        backgroundLayer = new TileLayer({
+            id: 'tile-layer',
+            data: tileLayer,
+            minZoom: 0,
+            maxZoom: 19,
+            tileSize: 256,
+            refinementStrategy: 'best-available',
+            renderSubLayers: (props: TileLayerProps<HTMLImageElement> & {
+                id: string;
+                data: HTMLImageElement;
+                _offset: number;
+                tile: Tile2DHeader<HTMLImageElement>;
+            }) => {
+                // eslint-disable-next-line @typescript-eslint/no-deprecated
+                const bbox = props.tile.bbox;
+                if (!('west' in bbox)) return null;
+                const { west, south, east, north } = bbox;
+                return new BitmapLayer({
+                    ...props,
+                    data: undefined,
+                    image: props.data,
+                    bounds: [west, south, east, north],
+                });
+            },
+            getTileData: ({ index: { x, y, z } }: TileIndex) => {
+                const url = tileLayer
+                    .replace('{s}', ['a', 'b', 'c'][Math.abs(x + y) % 3])
+                    .replace('{z}', String(z))
+                    .replace('{x}', String(x))
+                    .replace('{y}', String(y))
+                    .replace('{r}', '');
+                return new Promise((resolve, reject) => {
+                    const img = new Image();
+                    img.crossOrigin = 'anonymous';
+                    img.onload = () => resolve(img);
+                    img.onerror = reject;
+                    img.src = url;
+                });
+            },
+        });
+    }
 
     const tooltip = containerEl.createEl('div', { cls: 'map-tooltip' });
 
@@ -622,53 +693,10 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
             }
         },
         layers: (() => {
-            const tileLayerInstance = new TileLayer({
-                id: 'tile-layer',
-                data: tileLayer,
-                minZoom: 0,
-                maxZoom: 19,
-                tileSize: 256,
-                refinementStrategy: 'best-available',
-                // Converts each loaded tile (HTMLImageElement) into a BitmapLayer
-                // positioned at the tile's geographic bounds for rendering
-                renderSubLayers: (props: TileLayerProps<HTMLImageElement> & {
-                    id: string;
-                    data: HTMLImageElement;
-                    _offset: number;
-                    tile: Tile2DHeader<HTMLImageElement>;
-                }) => {
-                    // eslint-disable-next-line @typescript-eslint/no-deprecated
-                    const bbox = props.tile.bbox;
-                    if (!('west' in bbox)) return null;
-                    const { west, south, east, north } = bbox;
-                    return new BitmapLayer({
-                        ...props,
-                        data: undefined,
-                        image: props.data,
-                        bounds: [west, south, east, north],
-                    });
-                },
-                getTileData: ({ index: { x, y, z } }: TileIndex) => {
-                    const url = tileLayer
-                        .replace('{s}', ['a', 'b', 'c'][Math.abs(x + y) % 3])
-                        .replace('{z}', String(z))
-                        .replace('{x}', String(x))
-                        .replace('{y}', String(y))
-                        .replace('{r}', '');
-                    return new Promise((resolve, reject) => {
-                        const img = new Image();
-                        img.crossOrigin = 'anonymous';
-                        img.onload = () => resolve(img);
-                        img.onerror = reject;
-                        img.src = url;
-                    });
-                },
-            });
-
             const markerLayer = createMarkerLayer(deckData, markerType, settings, tagSettings, options, app);
             const polygonLayer = createPolygonLayer(points, tagSettings, markerColor, options, app);
 
-            const layers: (TileLayer<TileLayerProps<unknown>> | PolygonLayer | IconLayer | ScatterplotLayer)[] = [tileLayerInstance];
+            const layers = [backgroundLayer];
             if (polygonLayer) layers.push(polygonLayer);
             layers.push(markerLayer);
 

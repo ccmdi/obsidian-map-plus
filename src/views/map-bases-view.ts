@@ -126,6 +126,24 @@ export class MapBasesView extends BasesView {
         return (this.config.get('tileLayer') as string) || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
     }
 
+    private getImageBounds(): [[number, number], [number, number]] | undefined {
+        const boundsStr = this.config.get('imageBounds');
+        if (!boundsStr || typeof boundsStr !== 'string') return undefined;
+
+        try {
+            const parsed = JSON.parse(boundsStr);
+            if (Array.isArray(parsed) && parsed.length === 2 &&
+                Array.isArray(parsed[0]) && parsed[0].length === 2 &&
+                Array.isArray(parsed[1]) && parsed[1].length === 2) {
+                return parsed as [[number, number], [number, number]];
+            }
+        } catch {
+            // Invalid JSON, ignore
+        }
+
+        return undefined;
+    }
+
     private hasConfigMeaningfullyChanged(): boolean {
         if(this.hasConfigPropertyChanged('center')) {
             const centerRaw = this.config.get('center');
@@ -159,7 +177,7 @@ export class MapBasesView extends BasesView {
         }
     }
 
-    protected renderMap(): void {
+    protected async renderMap(): Promise<void> {
         if (!this.data) {
             this.containerEl.removeClass('is-loading');
             return;
@@ -237,7 +255,7 @@ export class MapBasesView extends BasesView {
             zoomToUse = this.getDefaultZoom();
         }
 
-        this.deck = createMapRenderer({
+        this.deck = await createMapRenderer({
             containerEl: this.mapEl,
             points,
             app: this.app,
@@ -250,6 +268,7 @@ export class MapBasesView extends BasesView {
                 height: height,
                 markerType: this.getMarkerType(),
                 tileLayer: this.getTileLayer(),
+                imageBounds: this.getImageBounds(),
                 onTilesLoaded: () => {
                     tilesLoaded = true;
                     hideOverlay();
@@ -613,10 +632,16 @@ export class MapBasesView extends BasesView {
                 type: 'group',
                 items: [
                     {
-                        displayName: 'Tile layer URL',
+                        displayName: 'Tile layer URL or image path',
                         type: 'text',
                         key: 'tileLayer',
                         placeholder: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+                    },
+                    {
+                        displayName: 'Image bounds (for local images)',
+                        type: 'text',
+                        key: 'imageBounds',
+                        placeholder: '[[minLat, minLng], [maxLat, maxLng]]',
                     },
                 ],
             },
