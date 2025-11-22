@@ -450,21 +450,8 @@ export class MapTimelineBasesView extends MapBasesView {
     }
 
     public onDataUpdated(): void {
-        // Check for base view config changes first (tileLayer, imageBounds, etc.)
-        if (this.deck) {
-            if(this.hasConfigPropertyChanged('tileLayer') || this.hasConfigPropertyChanged('imageBounds')) {
-                //debounce 500ms
-                if (this.mapUpdateTimeout) {
-                    window.clearTimeout(this.mapUpdateTimeout);
-                }
-                this.mapUpdateTimeout = window.setTimeout(() => {
-                    this.refresh();
-                }, 250);
-                return;
-            }
-        }
-
         if (this.getDateProperty()) {
+            super.beforeOnDataUpdated();
             this.updateTimelineData();
 
             if (!this.deck) {

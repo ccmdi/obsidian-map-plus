@@ -168,18 +168,23 @@ export class MapBasesView extends BasesView {
         return oldValue !== newValue;
     }
 
-    public onDataUpdated(): void {
-        // If map exists, just update points. Otherwise create map.
+    public beforeOnDataUpdated(): void {
         if (this.deck) {
             if(this.hasConfigPropertyChanged('tileLayer') || this.hasConfigPropertyChanged('imageBounds')) {
-                //debounce 500ms
                 if (this.mapUpdateTimeout) {
                     window.clearTimeout(this.mapUpdateTimeout);
                 }
                 this.mapUpdateTimeout = window.setTimeout(() => {
                     this.refresh();
-                }, 1500);
+                }, 250);
             }
+        }
+    }
+
+    public onDataUpdated(): void {
+        this.beforeOnDataUpdated();
+        // If map exists, just update points. Otherwise create map.
+        if (this.deck) {
             this.updateMap();
         } else {
             this.renderMap();
