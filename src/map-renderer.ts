@@ -68,6 +68,7 @@ export interface MapRendererOptions {
         onMarkerClick?: (point: MapPoint, event: MjolnirEvent) => void;
         onTilesLoaded?: () => void;
         onSetMapCenter?: (lat: number, lng: number) => void;
+        onSetDefaultZoom?: (zoom: number) => void;
     };
 }
 
@@ -743,6 +744,19 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
                         .setIcon('map-pin')
                         .onClick(() => {
                             options.onSetMapCenter?.(lat, lng);
+                        });
+                });
+            }
+
+            if (options.onSetDefaultZoom) {
+                menu.addItem((item) => {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
+                    const currentZoom = (viewState as any).zoom as number;
+                    item
+                        .setTitle('Set default zoom')
+                        .setIcon('zoom-in')
+                        .onClick(() => {
+                            options.onSetDefaultZoom?.(currentZoom);
                         });
                 });
             }

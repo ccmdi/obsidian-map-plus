@@ -291,6 +291,9 @@ export class MapBasesView extends BasesView {
                 },
                 onSetMapCenter: (lat: number, lng: number) => {
                     this.config.set('center', `${lat}, ${lng}`);
+                },
+                onSetDefaultZoom: (zoom: number) => {
+                    this.config.set('defaultZoom', zoom);
                 }
             }
         });
@@ -691,7 +694,7 @@ export class MapBasesView extends BasesView {
         });
     }
 
-    private makeDraggable(element: HTMLElement): void {
+    protected makeDraggable(element: HTMLElement): void {
         let isDragging = false;
         let offsetX = 0;
         let offsetY = 0;
