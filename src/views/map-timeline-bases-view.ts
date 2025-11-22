@@ -29,7 +29,6 @@ export class MapTimelineBasesView extends MapBasesView {
     private playButton: HTMLButtonElement | null = null;
     // private liveUpdateTimeout?: number;
     private allTimelineEntries: TimelineMapPoint[] = [];
-    private mapUpdateTimeout?: number;
     private dataUpdateTimeout?: number;
 
     private isPlaying: boolean = false;
@@ -103,6 +102,8 @@ export class MapTimelineBasesView extends MapBasesView {
 
     private createSlider(): void {
         const sliderContainer = this.mapEl.createDiv({ cls: 'bases-timeline-slider' });
+
+        this.makeDraggable(sliderContainer);
 
         const inputContainer = sliderContainer.createDiv({ cls: 'timeline-input-container' });
 
@@ -315,6 +316,63 @@ export class MapTimelineBasesView extends MapBasesView {
         }
     }
 
+    private makeDraggable(element: HTMLElement): void {
+        let isDragging = false;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        element.addClass('map-draggable');
+
+        const onMouseDown = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'BUTTON') {
+                return;
+            }
+
+            isDragging = true;
+            const rect = element.getBoundingClientRect();
+
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
+
+            element.addClass('dragging');
+
+            e.preventDefault();
+        };
+
+        const onMouseMove = (e: MouseEvent) => {
+            if (!isDragging) return;
+
+            const containerRect = this.mapEl.getBoundingClientRect();
+            const elementRect = element.getBoundingClientRect();
+
+            let x = e.clientX - containerRect.left - offsetX;
+            let y = e.clientY - containerRect.top - offsetY;
+
+            // Constrain to container bounds
+            x = Math.max(0, Math.min(x, containerRect.width - elementRect.width));
+            y = Math.max(0, Math.min(y, containerRect.height - elementRect.height));
+
+            element.setCssProps({'left': `${x}px`});
+            element.setCssProps({'top': `${y}px`});
+            element.addClass('move');
+        };
+
+        const onMouseUp = () => {
+            isDragging = false;
+        };
+
+        element.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+
+        // Clean up on destroy
+        this.register(() => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        });
+    }
+
     private togglePlayback(): void {
         if (this.isPlaying) {
             this.stopPlayback();
@@ -388,6 +446,7 @@ export class MapTimelineBasesView extends MapBasesView {
 
     public onDataUpdated(): void {
         if (this.getDateProperty()) {
+            super.beforeOnDataUpdated();
             this.updateTimelineData();
 
             if (!this.deck) {

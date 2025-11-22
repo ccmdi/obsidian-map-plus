@@ -30,7 +30,7 @@ export class MapBasesView extends BasesView {
     
     protected savedViewState: { latitude: number; longitude: number; zoom: number } | null = null;
     protected lastPoints: MapPoint[] = [];
-    protected watchProps = ['center', 'defaultZoom'];
+    protected mapUpdateTimeout?: number;
     protected lastConfigState: Record<string, unknown> = {};
 
     constructor(controller: QueryController, scrollEl: HTMLElement, plugin: MapPlugin) {
@@ -126,6 +126,25 @@ export class MapBasesView extends BasesView {
         return (this.config.get('tileLayer') as string) || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
     }
 
+    private getImageBounds(): [[number, number], [number, number]] | undefined {
+        const boundsStr = this.config.get('imageBounds');
+        if (!boundsStr || typeof boundsStr !== 'string') return undefined;
+
+        try {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+            const parsed = JSON.parse(boundsStr);
+            if (Array.isArray(parsed) && parsed.length === 2 &&
+                Array.isArray(parsed[0]) && parsed[0].length === 2 &&
+                Array.isArray(parsed[1]) && parsed[1].length === 2) {
+                return parsed as [[number, number], [number, number]];
+            }
+        } catch {
+            // Invalid JSON, ignore
+        }
+
+        return undefined;
+    }
+
     private hasConfigMeaningfullyChanged(): boolean {
         if(this.hasConfigPropertyChanged('center')) {
             const centerRaw = this.config.get('center');
@@ -150,7 +169,21 @@ export class MapBasesView extends BasesView {
         return oldValue !== newValue;
     }
 
+    public beforeOnDataUpdated(): void {
+        if (this.deck) {
+            if(this.hasConfigPropertyChanged('tileLayer') || this.hasConfigPropertyChanged('imageBounds')) {
+                if (this.mapUpdateTimeout) {
+                    window.clearTimeout(this.mapUpdateTimeout);
+                }
+                this.mapUpdateTimeout = window.setTimeout(() => {
+                    this.refresh();
+                }, 250);
+            }
+        }
+    }
+
     public onDataUpdated(): void {
+        this.beforeOnDataUpdated();
         // If map exists, just update points. Otherwise create map.
         if (this.deck) {
             this.updateMap();
@@ -250,6 +283,7 @@ export class MapBasesView extends BasesView {
                 height: height,
                 markerType: this.getMarkerType(),
                 tileLayer: this.getTileLayer(),
+                imageBounds: this.getImageBounds(),
                 onTilesLoaded: () => {
                     tilesLoaded = true;
                     hideOverlay();
@@ -613,10 +647,16 @@ export class MapBasesView extends BasesView {
                 type: 'group',
                 items: [
                     {
-                        displayName: 'Tile layer URL',
+                        displayName: 'Tile layer URL or image path',
                         type: 'text',
                         key: 'tileLayer',
                         placeholder: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
+                    },
+                    {
+                        displayName: 'Image bounds',
+                        type: 'text',
+                        key: 'imageBounds',
+                        placeholder: '[[minLat, minLng], [maxLat, maxLng]]',
                     },
                 ],
             },
