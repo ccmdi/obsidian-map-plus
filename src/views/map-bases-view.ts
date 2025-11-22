@@ -27,15 +27,11 @@ export class MapBasesView extends BasesView {
     plugin: MapPlugin;
 
     protected deck: Deck<MapViewType[]> | null = null;
-    protected coordinatesProp: BasesPropertyId | null = null;
-    protected coverProp: BasesPropertyId | null = null;
-    private mapHeight: number = DEFAULT_MAP_HEIGHT;
-    protected defaultZoom: number = DEFAULT_MAP_ZOOM;
-    protected center: [number, number] = [0, 0];
-    protected markerType: 'pins' | 'dots' = 'pins';
-    private tileLayer: string = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
-    private savedViewState: { latitude: number; longitude: number; zoom: number } | null = null;
+    
+    protected savedViewState: { latitude: number; longitude: number; zoom: number } | null = null;
     protected lastPoints: MapPoint[] = [];
+    protected watchProps = ['center', 'defaultZoom'];
+    protected lastConfigState: Record<string, unknown> = {};
 
     constructor(controller: QueryController, scrollEl: HTMLElement, plugin: MapPlugin) {
         super(controller);
@@ -52,12 +48,10 @@ export class MapBasesView extends BasesView {
             })
         );
 
+        //TODO: maximizing in other window still breaks WebGL context
         this.register(
             this.containerEl.onWindowMigrated(() => {
-                if (this.deck) {
-                    this.destroyMap();
-                    this.renderMap();
-                }
+                this.refresh();
             })
         );
     }
@@ -76,11 +70,7 @@ export class MapBasesView extends BasesView {
             this.deck.setProps({ width: '100%', height: '100%' });
         }
     }
-
-    public focus(): void {
-        this.containerEl.focus({ preventScroll: true });
-    }
-
+    
     private destroyMap(): void {
         if (this.deck) {
             try {
@@ -100,59 +90,72 @@ export class MapBasesView extends BasesView {
         }
     }
 
-    public onDataUpdated(): void {
-        this.loadConfig();
-
-        // If map exists, just update points. Otherwise create map.
-        if (this.deck) {
-            this.updatePointsOnly();
-        } else {
-            this.renderMap();
-        }
+    private getCoordinatesProp(): BasesPropertyId | null {
+        return this.config.getAsPropertyId('coordinates');
     }
 
-    protected loadConfig(): void {
-        this.coordinatesProp = this.config.getAsPropertyId('coordinates');
-        this.coverProp = this.config.getAsPropertyId('coverImage');
+    private getCoverProp(): BasesPropertyId | null {
+        return this.config.getAsPropertyId('coverImage');
+    }
 
-        const heightVal = this.config.get('mapHeight');
-        if (heightVal && typeof heightVal === 'number') {
-            this.mapHeight = heightVal;
-        }
+    private getPolygonProp(): BasesPropertyId | null {
+        return this.config.getAsPropertyId('polygonPoints');
+    }
 
-        const zoomVal = this.config.get('defaultZoom');
-        if (zoomVal && typeof zoomVal === 'number') {
-            this.defaultZoom = zoomVal;
-        }
+    private getMapHeight(): number {
+        return (this.config.get('mapHeight') as number) || DEFAULT_MAP_HEIGHT;
+    }
 
-        const centerVal = this.config.get('center');
-        if (centerVal && typeof centerVal === 'string') {
-            const parts = centerVal.split(',').map(p => parseFloat(p.trim()));
-            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                this.center = [parts[0], parts[1]];
-            } else {
-                this.center = [0, 0]; // Reset if invalid
-            }
-        } else {
-            this.center = [0, 0]; // Reset if not configured
-        }
+    private getDefaultZoom(): number {
+        return (this.config.get('defaultZoom') as number) || DEFAULT_MAP_ZOOM;
+    }
 
+    private getCenter(): [number, number] {
+        return this.parseLatLngOrZero(this.config.get('center'));
+    }
+
+    private getMarkerType(): 'pins' | 'dots' {
         const markerTypeVal = this.config.get('markerType');
         if (markerTypeVal === 'pins' || markerTypeVal === 'dots') {
-            this.markerType = markerTypeVal;
+            return markerTypeVal;
         }
+        return 'pins';
+    }
 
-        const tileLayerVal = this.config.get('tileLayer');
-        const oldTileLayer = this.tileLayer;
-        if (tileLayerVal && typeof tileLayerVal === 'string') {
-            this.tileLayer = tileLayerVal;
+    private getTileLayer(): string {
+        return (this.config.get('tileLayer') as string) || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
+    }
+
+    private hasConfigMeaningfullyChanged(): boolean {
+        if(this.hasConfigPropertyChanged('center')) {
+            const centerRaw = this.config.get('center');
+            // Meaningful if it's empty OR if it's valid
+            if (!centerRaw || this.parseLatLng(centerRaw) !== null) {
+                return true;
+            }
+        }
+        if (this.hasConfigPropertyChanged('defaultZoom')) {
+            const centerRaw = this.parseLatLng(this.config.get('center'));
+            // Only meaningful if center is valid AND non-empty (non-zero)
+            if (centerRaw !== null && (centerRaw[0] !== 0 || centerRaw[1] !== 0)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    hasConfigPropertyChanged(property: string): boolean {
+        const oldValue = this.lastConfigState[property] ?? '';
+        const newValue = this.config.get(property) ?? '';
+        return oldValue !== newValue;
+    }
+
+    public onDataUpdated(): void {
+        // If map exists, just update points. Otherwise create map.
+        if (this.deck) {
+            this.updateMap();
         } else {
-            this.tileLayer = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
-        }
-
-        // If tile layer changed, destroy and recreate map
-        if (oldTileLayer !== this.tileLayer && this.deck) {
-            this.destroyMap();
+            this.renderMap();
         }
     }
 
@@ -200,7 +203,8 @@ export class MapBasesView extends BasesView {
         const points = this.extractPointsFromData();
 
         const isEmbedded = this.isEmbedded();
-        const height = isEmbedded ? `${this.mapHeight}px` : '100%';
+        const mapHeight = this.getMapHeight();
+        const height = isEmbedded ? `${mapHeight}px` : '100%';
 
         const tagSettings = this.plugin.tagSettings;
         const settings = this.plugin.settings;
@@ -217,19 +221,20 @@ export class MapBasesView extends BasesView {
             }, 300);
         };
 
-        const hasConfiguredCenter = this.center[0] !== 0 || this.center[1] !== 0;
+        const center = this.getCenter();
+        const hasConfiguredCenter = center[0] !== 0 || center[1] !== 0;
         let centerToUse: [number, number];
         let zoomToUse: number;
 
         if (hasConfiguredCenter) {
-            centerToUse = this.center;
-            zoomToUse = this.defaultZoom;
+            centerToUse = center;
+            zoomToUse = this.getDefaultZoom();
         } else if (this.savedViewState) {
             centerToUse = [this.savedViewState.latitude, this.savedViewState.longitude];
             zoomToUse = this.savedViewState.zoom;
         } else {
-            centerToUse = this.center;
-            zoomToUse = this.defaultZoom;
+            centerToUse = center;
+            zoomToUse = this.getDefaultZoom();
         }
 
         this.deck = createMapRenderer({
@@ -243,8 +248,8 @@ export class MapBasesView extends BasesView {
                 center: centerToUse,
                 zoom: zoomToUse,
                 height: height,
-                markerType: this.markerType,
-                tileLayer: this.tileLayer,
+                markerType: this.getMarkerType(),
+                tileLayer: this.getTileLayer(),
                 onTilesLoaded: () => {
                     tilesLoaded = true;
                     hideOverlay();
@@ -274,9 +279,7 @@ export class MapBasesView extends BasesView {
         return false;
     }
 
-    
-
-    private updatePointsOnly(): void {
+    private updateMap(): void {
         if (!this.deck || !this.data) return;
 
         const points = this.extractPointsFromData();
@@ -285,11 +288,23 @@ export class MapBasesView extends BasesView {
             console.warn('onDataUpdated triggered but points are unchanged - skipping update');
             return;
         }
-        const locationsChanged = haveLocationsChanged(points, this.lastPoints);
-        
-        this.lastPoints = points;
 
-        const hasConfiguredCenter = this.center[0] !== 0 || this.center[1] !== 0;
+        this.updateRenderedPoints(points);
+    }
+
+    protected updateRenderedPoints(points: MapPoint[], autofit: boolean | undefined = undefined): void {
+        if (!this.deck) return;
+
+        const center = this.getCenter();
+        const hasConfiguredCenter = center[0] !== 0 || center[1] !== 0;
+        const locationsChanged = haveLocationsChanged(points, this.lastPoints);
+        const configChanged = this.hasConfigMeaningfullyChanged();
+
+        this.lastConfigState = { ...this.config.data };
+
+        const shouldAutoCenter = this.plugin.settings.autoCenter && (autofit === true || (autofit === undefined && (locationsChanged || configChanged)));
+
+        this.lastPoints = points;
 
         updateMapPoints(this.deck, points, {
             containerEl: this.mapEl,
@@ -297,10 +312,10 @@ export class MapBasesView extends BasesView {
             settings: this.plugin.settings,
             tagSettings: this.plugin.tagSettings,
             options: {
-                markerType: this.markerType,
-                center: hasConfiguredCenter ? this.center : undefined,
-                zoom: hasConfiguredCenter ? this.defaultZoom : undefined,
-                autoCenter: this.plugin.settings.autoCenter && !hasConfiguredCenter && locationsChanged
+                markerType: this.getMarkerType(),
+                center: hasConfiguredCenter ? center : undefined,
+                zoom: hasConfiguredCenter ? this.getDefaultZoom() : undefined,
+                autoCenter: shouldAutoCenter
             }
         });
     }
@@ -309,8 +324,12 @@ export class MapBasesView extends BasesView {
         if (!this.data) return [];
 
         const points: MapPoint[] = [];
+        const coordinatesProp = this.getCoordinatesProp();
+        const coverProp = this.getCoverProp();
+        const polygonProp = this.getPolygonProp();
+
         for (const entry of this.data.data) {
-            const coordinates = this.extractCoordinates(entry);
+            const coordinates = this.extractCoordinates(entry, coordinatesProp);
             if (!coordinates) continue;
 
             let point: MapPoint = {
@@ -327,8 +346,8 @@ export class MapBasesView extends BasesView {
                 point.tags = Array.isArray(tags) ? tags : [tags];
             }
 
-            if (this.coverProp) {
-                const coverVal = entry.getValue(this.coverProp);
+            if (coverProp) {
+                const coverVal = entry.getValue(coverProp);
                 if (coverVal) {
                     point.cover = coverVal.toString();
 
@@ -341,7 +360,7 @@ export class MapBasesView extends BasesView {
             const properties: Array<{ name: string; value: string }> = [];
             if (this.data.properties) {
                 for (const prop of this.data.properties.slice(0, 20)) {
-                    if (prop === this.coordinatesProp) continue;
+                    if (prop === coordinatesProp) continue;
 
                     try {
                         const value = entry.getValue(prop);
@@ -361,6 +380,16 @@ export class MapBasesView extends BasesView {
                 point.properties = properties;
             }
 
+            if (polygonProp) {
+                const polygonVal = entry.getValue(polygonProp);
+                if (polygonVal) {
+                    const polygonCoords = this.extractPolygonCoordinates(polygonVal);
+                    if (polygonCoords) {
+                        point.polygon = polygonCoords;
+                    }
+                }
+            }
+
             point = {...point, ...callback?.(entry)};
 
             points.push(point);
@@ -369,34 +398,12 @@ export class MapBasesView extends BasesView {
         return points;
     }
 
-    protected extractCoordinates(entry: BasesEntry): [number, number] | null {
-        if (this.coordinatesProp) {
+    protected extractCoordinates(entry: BasesEntry, coordinatesProp: BasesPropertyId | null): [number, number] | null {
+        if (coordinatesProp) {
             try {
-                const value = entry.getValue(this.coordinatesProp);
-                if (value) {
-                    // Handle list values [lat, lng]
-                    if (value instanceof ListValue) {
-                        if (value.length() >= 2) {
-                            const lat = this.parseCoordinate(value.get(0));
-                            const lng = this.parseCoordinate(value.get(1));
-                            if (lat !== null && lng !== null) {
-                                return [lat, lng];
-                            }
-                        }
-                    }
-                    // Handle string values "lat,lng"
-                    else if (value instanceof StringValue) {
-                        const stringData = value.toString().trim();
-                        const parts = stringData.split(',');
-                        if (parts.length >= 2) {
-                            const lat = this.parseCoordinate(parts[0].trim());
-                            const lng = this.parseCoordinate(parts[1].trim());
-                            if (lat !== null && lng !== null) {
-                                return [lat, lng];
-                            }
-                        }
-                    }
-                }
+                const value = entry.getValue(coordinatesProp);
+                const coords = this.parseLatLng(value);
+                if (coords) return coords;
             } catch (error) {
                 console.error(`Error extracting coordinates for ${entry.file.name}:`, error);
             }
@@ -461,6 +468,77 @@ export class MapBasesView extends BasesView {
         return null;
     }
 
+    private parseLatLng(value: unknown): [number, number] | null {
+        // Handle ListValue from frontmatter: [40.7128, -74.0060]
+        if (value instanceof ListValue && value.length() >= 2) {
+            const lat = this.parseCoordinate(value.get(0));
+            const lng = this.parseCoordinate(value.get(1));
+            if (lat !== null && lng !== null) {
+                return [lat, lng];
+            }
+        }
+
+        // Handle plain JavaScript array from JSON.parse: [40.7128, -74.0060]
+        if (Array.isArray(value) && value.length >= 2) {
+            const lat = this.parseCoordinate(value[0]);
+            const lng = this.parseCoordinate(value[1]);
+            if (lat !== null && lng !== null) {
+                return [lat, lng];
+            }
+        }
+
+        // Handle string: "40.7128, -74.0060" or StringValue wrapper
+        if (value instanceof StringValue || typeof value === 'string') {
+            const str = value instanceof StringValue ? value.toString() : value;
+            const parts = str.split(',').map(p => parseFloat(p.trim()));
+            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+                return [parts[0], parts[1]];
+            }
+        }
+
+        return null;
+    }
+
+    private parseLatLngOrZero(value: unknown): [number, number] {
+        return this.parseLatLng(value) ?? [0, 0];
+    }
+
+    private extractPolygonCoordinates(value: unknown): [number, number][] | null {
+        try {
+            // Handle ListValue (array from frontmatter)
+            if (value instanceof ListValue) {
+                const coords: [number, number][] = [];
+                for (let i = 0; i < value.length(); i++) {
+                    const coord = this.parseLatLng(value.get(i));
+                    if (coord) coords.push(coord);
+                }
+                return coords.length > 0 ? coords : null;
+            }
+
+            // Handle string value as JSON array
+            if (value instanceof StringValue) {
+                try {
+                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+                    const parsed = JSON.parse(value.toString().trim());
+                    if (Array.isArray(parsed)) {
+                        const coords: [number, number][] = [];
+                        for (const item of parsed) {
+                            const coord = this.parseLatLng(item);
+                            if (coord) coords.push(coord);
+                        }
+                        return coords.length > 0 ? coords : null;
+                    }
+                } catch {
+                    // Not JSON, ignore
+                }
+            }
+        } catch (error) {
+            console.error('Error extracting polygon coordinates:', error);
+        }
+
+        return null;
+    }
+
     static getViewOptions(): ViewOption[] {
         return [
             {
@@ -518,6 +596,13 @@ export class MapBasesView extends BasesView {
                         displayName: 'Cover image property',
                         type: 'property',
                         key: 'coverImage',
+                        filter: (prop) => !prop.startsWith('file.'),
+                        placeholder: 'Property',
+                    },
+                    {
+                        displayName: 'Polygon points property',
+                        type: 'property',
+                        key: 'polygonPoints',
                         filter: (prop) => !prop.startsWith('file.'),
                         placeholder: 'Property',
                     },
