@@ -7,8 +7,9 @@ import {
     QueryController,
     StringValue,
     ViewOption,
+    requestUrl,
 } from 'obsidian';
-import { Deck } from '@deck.gl/core';
+import { Deck, FlyToInterpolator } from '@deck.gl/core';
 import { MapView as MapViewType } from '@deck.gl/core';
 import { createMapRenderer, MapPoint, updateMapPoints } from '../map-renderer';
 import MapPlugin from '../main';
@@ -298,6 +299,8 @@ export class MapBasesView extends BasesView {
 
         this.containerEl.removeClass('is-loading');
 
+        this.createSearchBox();
+
         setTimeout(() => {
             if (!tilesLoaded) {
                 hideOverlay();
@@ -574,6 +577,169 @@ export class MapBasesView extends BasesView {
         }
 
         return null;
+    }
+
+    private createSearchBox(): void {
+        interface PhotonFeature {
+            geometry: {
+                coordinates: [number, number];
+            };
+            properties: {
+                name?: string;
+                street?: string;
+                city?: string;
+                country?: string;
+            };
+        }
+
+        interface PhotonResponse {
+            features: PhotonFeature[];
+        }
+
+        const searchContainer = this.mapEl.createDiv({ cls: 'bases-map-search-container' });
+        this.makeDraggable(searchContainer);
+
+        const searchInput = searchContainer.createEl('input', {
+            type: 'text',
+            cls: 'map-search-input',
+            placeholder: 'Search location...',
+        });
+
+        const resultsContainer = searchContainer.createDiv({ cls: 'map-search-results' });
+
+        let searchTimeout: number;
+        let currentResults: Array<{ lat: number; lng: number; name: string; display_name: string }> = [];
+
+        const performSearch = async (query: string) => {
+            try {
+                // Using Photon API (free, no API key, OSM-based)
+                const response = await requestUrl(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`);
+                const data = response.json as PhotonResponse;
+
+                currentResults = data.features.map((feature: PhotonFeature) => ({
+                    lat: feature.geometry.coordinates[1],
+                    lng: feature.geometry.coordinates[0],
+                    name: feature.properties.name ?? feature.properties.street ?? '',
+                    display_name: [
+                        feature.properties.name,
+                        feature.properties.city,
+                        feature.properties.country
+                    ].filter(Boolean).join(', ')
+                }));
+
+                resultsContainer.empty();
+                
+                if (currentResults.length > 0) {
+                    currentResults.forEach((result) => {
+                        const resultItem = resultsContainer.createDiv({ cls: 'map-search-result-item' });
+                        resultItem.textContent = result.display_name;
+                        
+                        resultItem.addEventListener('click', () => {
+                            if (this.deck) {
+                                // Center map on selected location
+                                this.deck.setProps({
+                                    initialViewState: {
+                                        MapView: {
+                                            latitude: result.lat,
+                                            longitude: result.lng,
+                                            zoom: 12,
+                                            transitionDuration: 800,
+                                            transitionInterpolator: new FlyToInterpolator(),
+                                        }
+                                    }
+                                });
+                            }
+                            searchInput.value = result.name || result.display_name;
+                            resultsContainer.empty();
+                            resultsContainer.removeClass('visible');
+                        });
+                    });
+                    resultsContainer.addClass('visible');
+                } else {
+                    resultsContainer.removeClass('visible');
+                }
+            } catch (error) {
+                console.error('Search error:', error);
+                resultsContainer.empty();
+                resultsContainer.removeClass('visible');
+            }
+        };
+
+        searchInput.addEventListener('input', () => {
+            const query = searchInput.value.trim();
+            
+            if (searchTimeout) {
+                window.clearTimeout(searchTimeout);
+            }
+
+            if (query.length < 3) {
+                resultsContainer.empty();
+                resultsContainer.removeClass('visible');
+                return;
+            }
+
+            searchTimeout = window.setTimeout(() => {
+                void performSearch(query);
+            }, 300);
+        });
+
+        // Close results when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!searchContainer.contains(e.target as Node)) {
+                resultsContainer.removeClass('visible');
+            }
+        });
+    }
+
+    private makeDraggable(element: HTMLElement): void {
+        let isDragging = false;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        element.addClass('map-draggable');
+
+        const onMouseDown = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'BUTTON') {
+                return;
+            }
+
+            isDragging = true;
+            const rect = element.getBoundingClientRect();
+
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
+
+            element.addClass('dragging');
+
+            e.preventDefault();
+        };
+
+        const onMouseMove = (e: MouseEvent) => {
+            if (!isDragging) return;
+
+            const containerRect = this.mapEl.getBoundingClientRect();
+            const elementRect = element.getBoundingClientRect();
+
+            let x = e.clientX - containerRect.left - offsetX;
+            let y = e.clientY - containerRect.top - offsetY;
+
+            // Constrain to container bounds
+            x = Math.max(0, Math.min(x, containerRect.width - elementRect.width));
+            y = Math.max(0, Math.min(y, containerRect.height - elementRect.height));
+
+            element.setCssProps({'left': `${x}px`});
+            element.setCssProps({'top': `${y}px`});
+            element.addClass('move');
+        };
+
+        const onMouseUp = () => {
+            isDragging = false;
+        };
+
+        element.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
     }
 
     static getViewOptions(): ViewOption[] {
