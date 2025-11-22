@@ -668,7 +668,7 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
             const markerLayer = createMarkerLayer(deckData, markerType, settings, tagSettings, options, app);
             const polygonLayer = createPolygonLayer(points, tagSettings, markerColor, options, app);
 
-            const layers = [tileLayerInstance];
+            const layers: (TileLayer<TileLayerProps<unknown>> | PolygonLayer | IconLayer | ScatterplotLayer)[] = [tileLayerInstance];
             if (polygonLayer) layers.push(polygonLayer);
             layers.push(markerLayer);
 
