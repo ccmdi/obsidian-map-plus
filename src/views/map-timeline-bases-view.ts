@@ -27,13 +27,6 @@ export class MapTimelineBasesView extends MapBasesView {
     private sliderEl: HTMLInputElement | null = null;
     private playButton: HTMLButtonElement | null = null;
 
-    private dateProperty: BasesPropertyId | null = null;
-    private endDateProperty: BasesPropertyId | null = null;
-    private uniquenessProperty: BasesPropertyId | null = null;
-    private uniquenessMode: UniquenessMode = 'all';
-    private granularity: TimelineGranularity = 'daily';
-    private dateRangeStart: number = 0;
-    private dateRangeEnd: number = Date.now();
     private allTimelineEntries: TimelineMapPoint[] = [];
     private mapUpdateTimeout?: number;
     
@@ -60,6 +53,51 @@ export class MapTimelineBasesView extends MapBasesView {
         super.refresh();
     }
 
+    private getDateProperty(): BasesPropertyId | null {
+        return this.config.getAsPropertyId('dateProperty');
+    }
+
+    private getEndDateProperty(): BasesPropertyId | null {
+        return this.config.getAsPropertyId('endDateProperty');
+    }
+
+    private getUniquenessProperty(): BasesPropertyId | null {
+        return this.config.getAsPropertyId('uniquenessProperty');
+    }
+
+    private getUniquenessMode(): UniquenessMode {
+        const modeVal = this.config.get('uniquenessMode');
+        if (modeVal === 'most-recent' || modeVal === 'least-recent' || modeVal === 'all') {
+            return modeVal;
+        }
+        return 'all';
+    }
+
+    private getGranularity(): TimelineGranularity {
+        const saved = this.config.get('_granularity');
+        if (saved === 'daily' || saved === 'monthly' || saved === 'yearly') {
+            return saved;
+        }
+        return 'daily';
+    }
+
+    private getDateRangeEnd(): number {
+        const saved = this.config.get('_dateRangeEnd');
+        if (saved && typeof saved === 'number') {
+            return saved;
+        }
+        return Date.now();
+    }
+
+    private setDateRangeEnd(value: number): void {
+        this.config.set('_dateRangeEnd', value);
+    }
+
+    private getDateRangeStart(): number {
+        if (this.allTimelineEntries.length === 0) return 0;
+        return Math.min(...this.allTimelineEntries.map(e => e.date));
+    }
+
     private createSlider(): void {
         const sliderContainer = this.mapEl.createDiv({ cls: 'bases-timeline-slider' });
 
@@ -78,11 +116,10 @@ export class MapTimelineBasesView extends MapBasesView {
         granularitySelect.createEl('option', { value: 'monthly', text: 'Monthly' });
         granularitySelect.createEl('option', { value: 'yearly', text: 'Yearly' });
 
-        granularitySelect.value = this.granularity;
+        granularitySelect.value = this.getGranularity();
 
         granularitySelect.addEventListener('change', () => {
-            this.granularity = granularitySelect.value as TimelineGranularity;
-            this.config.set('_granularity', this.granularity);
+            this.config.set('_granularity', granularitySelect.value);
             this.updateDateInput(dateInputEl);
         });
 
@@ -91,8 +128,7 @@ export class MapTimelineBasesView extends MapBasesView {
 
             const timestamp = this.parseDateInput(dateInputEl.value);
             if (timestamp !== null) {
-                this.dateRangeEnd = timestamp;
-                this.config.set('_dateRangeEnd', timestamp);
+                this.setDateRangeEnd(timestamp);
                 this.updateSliderFromDate();
                 this.updateRenderedPoints(this.applyTimelineFilter(), false);
             }
@@ -120,7 +156,7 @@ export class MapTimelineBasesView extends MapBasesView {
         this.sliderEl.addEventListener('change', () => {
             const filteredPoints = this.applyTimelineFilter();
 
-            this.config.set('_dateRangeEnd', this.dateRangeEnd);
+            this.setDateRangeEnd(this.getDateRangeEnd());
             
             if (this.mapUpdateTimeout) {
                 window.clearTimeout(this.mapUpdateTimeout);
@@ -185,7 +221,7 @@ export class MapTimelineBasesView extends MapBasesView {
         if (range === 0) {
             this.sliderEl.value = '100';
         } else {
-            const percentage = ((this.dateRangeEnd - minDate) / range) * 100;
+            const percentage = ((this.getDateRangeEnd() - minDate) / range) * 100;
             this.sliderEl.value = Math.min(100, Math.max(0, percentage)).toString();
         }
     }
@@ -245,17 +281,19 @@ export class MapTimelineBasesView extends MapBasesView {
     }
 
     private updateDateInput(dateInputEl: HTMLInputElement): void {
-        const date = new Date(this.dateRangeEnd);
+        const date = new Date(this.getDateRangeEnd());
         if (isNaN(date.getTime())) return;
 
         const year = date.getFullYear();
         const month = this.padNumber(date.getMonth() + 1, 2);
         const day = this.padNumber(date.getDate(), 2);
 
-        if (this.granularity === 'yearly') {
+        const granularity = this.getGranularity();
+
+        if (granularity === 'yearly') {
             dateInputEl.value = `${year}`;
             dateInputEl.placeholder = 'YYYY';
-        } else if (this.granularity === 'monthly') {
+        } else if (granularity === 'monthly') {
             dateInputEl.value = `${year}-${month}`;
             //eslint-disable-next-line obsidianmd/ui/sentence-case
             dateInputEl.placeholder = 'YYYY-MM';
@@ -293,9 +331,12 @@ export class MapTimelineBasesView extends MapBasesView {
         const maxDate = Math.max(...this.allTimelineEntries.map(e => e.date));
         const totalRange = maxDate - minDate;
 
+        let currentDateRangeEnd = this.getDateRangeEnd();
+
         // If at end, restart from beginning
-        if (this.dateRangeEnd >= maxDate) {
-            this.dateRangeEnd = minDate;
+        if (currentDateRangeEnd >= maxDate) {
+            currentDateRangeEnd = minDate;
+            this.setDateRangeEnd(currentDateRangeEnd);
             this.updateSliderFromDate();
             this.updateRenderedPoints(this.applyTimelineFilter(), false);
         }
@@ -317,7 +358,8 @@ export class MapTimelineBasesView extends MapBasesView {
             // At 1x speed, complete timeline in ~100 seconds
             const dateIncrement = (totalRange / 100000) * tickInterval * this.playbackSpeed;
 
-            this.dateRangeEnd = Math.min(maxDate, this.dateRangeEnd + dateIncrement);
+            currentDateRangeEnd = Math.min(maxDate, currentDateRangeEnd + dateIncrement);
+            this.setDateRangeEnd(currentDateRangeEnd);
             this.updateSliderFromDate();
 
             const dateInputEl = this.sliderEl.parentElement?.querySelector('.timeline-date-input') as HTMLInputElement;
@@ -328,7 +370,7 @@ export class MapTimelineBasesView extends MapBasesView {
             this.updateRenderedPoints(this.applyTimelineFilter(), false);
 
             // Stop at end
-            if (this.dateRangeEnd >= maxDate) {
+            if (currentDateRangeEnd >= maxDate) {
                 this.stopPlayback();
             }
         }, tickInterval);
@@ -343,12 +385,11 @@ export class MapTimelineBasesView extends MapBasesView {
             window.clearInterval(this.playbackInterval);
             this.playbackInterval = null;
         }
-        this.config.set('_dateRangeEnd', this.dateRangeEnd);
     }
 
     public onDataUpdated(): void {
         this.loadConfig();
-        if (this.dateProperty) {
+        if (this.getDateProperty()) {
             this.updateTimelineData();
 
             if (!this.deck) {
@@ -369,38 +410,21 @@ export class MapTimelineBasesView extends MapBasesView {
     protected getConfigState(): Record<string, unknown> {
         return {
             ...super.getConfigState(),
-            dateProperty: this.dateProperty,
-            endDateProperty: this.endDateProperty,
-            uniquenessProperty: this.uniquenessProperty,
-            uniquenessMode: this.uniquenessMode,
+            dateProperty: this.getDateProperty(),
+            endDateProperty: this.getEndDateProperty(),
+            uniquenessProperty: this.getUniquenessProperty(),
+            uniquenessMode: this.getUniquenessMode(),
         };
     }
 
     protected loadConfig(): boolean {
-        this.dateProperty = this.config.getAsPropertyId('dateProperty');
-        this.endDateProperty = this.config.getAsPropertyId('endDateProperty');
-        this.uniquenessProperty = this.config.getAsPropertyId('uniquenessProperty');
-
-        const modeVal = this.config.get('uniquenessMode');
-        if (modeVal === 'most-recent' || modeVal === 'least-recent' || modeVal === 'all') {
-            this.uniquenessMode = modeVal;
-        }
-
-        const savedGranularity = this.config.get('_granularity');
-        if (savedGranularity === 'daily' || savedGranularity === 'monthly' || savedGranularity === 'yearly') {
-            this.granularity = savedGranularity;
-        }
-
-        const savedDateRangeEnd = this.config.get('_dateRangeEnd');
-        if (savedDateRangeEnd && typeof savedDateRangeEnd === 'number') {
-            this.dateRangeEnd = savedDateRangeEnd;
-        }
-
+        // No longer need to load into class properties
         return super.loadConfig();
     }
 
     private updateTimelineData(): void {
-        if (!this.data || !this.dateProperty) {
+        const dateProperty = this.getDateProperty();
+        if (!this.data || !dateProperty) {
             this.allTimelineEntries = [];
             return;
         }
@@ -409,10 +433,10 @@ export class MapTimelineBasesView extends MapBasesView {
         let maxDate = -Infinity;
 
         const points = this.extractPointsFromData((entry): Partial<TimelineMapPoint> => {
-            const dateValue = this.extractDateValue(entry, this.dateProperty);
+            const dateValue = this.extractDateValue(entry, dateProperty);
             if (dateValue === null) return {};
 
-            const endDateValue = this.extractDateValue(entry, this.endDateProperty);
+            const endDateValue = this.extractDateValue(entry, this.getEndDateProperty());
             const uniqueId = this.extractUniqueId(entry);
 
             minDate = Math.min(minDate, dateValue);
@@ -423,11 +447,9 @@ export class MapTimelineBasesView extends MapBasesView {
 
         this.allTimelineEntries = points.filter(p => p.date !== undefined);
 
-        this.dateRangeStart = minDate === Infinity ? 0 : minDate;
-
         const savedDateRangeEnd = this.config.get('_dateRangeEnd');
         if (!savedDateRangeEnd || typeof savedDateRangeEnd !== 'number') {
-            this.dateRangeEnd = maxDate === -Infinity ? Date.now() : maxDate;
+            this.setDateRangeEnd(maxDate === -Infinity ? Date.now() : maxDate);
         }
 
         if (this.sliderEl) {
@@ -464,12 +486,13 @@ export class MapTimelineBasesView extends MapBasesView {
     }
 
     private extractUniqueId(entry: BasesEntry): string {
-        if (!this.uniquenessProperty) {
+        const uniquenessProperty = this.getUniquenessProperty();
+        if (!uniquenessProperty) {
             return entry.file.path;
         }
 
         try {
-            const value = entry.getValue(this.uniquenessProperty);
+            const value = entry.getValue(uniquenessProperty);
             return value ? value.toString() : entry.file.path;
         } catch {
             return entry.file.path;
@@ -488,26 +511,31 @@ export class MapTimelineBasesView extends MapBasesView {
             ? Math.min(...this.allTimelineEntries.map(e => e.date))
             : 0;
 
-        this.dateRangeStart = minDate;
-        this.dateRangeEnd = minDate + (totalRange * sliderValue / 100);
+        this.setDateRangeEnd(minDate + (totalRange * sliderValue / 100));
     }
 
 
     private applyTimelineFilter(): TimelineMapPoint[] {
+        const dateRangeStart = this.getDateRangeStart();
+        const dateRangeEnd = this.getDateRangeEnd();
+
         let filteredPoints = this.allTimelineEntries.filter(point => {
-            const inDateRange = point.date >= this.dateRangeStart && point.date <= this.dateRangeEnd;
+            const inDateRange = point.date >= dateRangeStart && point.date <= dateRangeEnd;
             // Entity must have started by the current time
             if (!inDateRange) return false;
 
             // Entity must not have ended before the current time (null = ongoing/no end date)
-            if (point.endDate !== null && point.endDate < this.dateRangeEnd) {
+            if (point.endDate !== null && point.endDate < dateRangeEnd) {
                 return false;
             }
 
             return true;
         });
 
-        if (this.uniquenessProperty && this.uniquenessMode !== 'all') {
+        const uniquenessProperty = this.getUniquenessProperty();
+        const uniquenessMode = this.getUniquenessMode();
+
+        if (uniquenessProperty && uniquenessMode !== 'all') {
             const grouped = new Map<string, TimelineMapPoint[]>();
 
             for (const point of filteredPoints) {
@@ -524,9 +552,9 @@ export class MapTimelineBasesView extends MapBasesView {
 
                 group.sort((a, b) => a.date - b.date);
 
-                if (this.uniquenessMode === 'most-recent') {
+                if (uniquenessMode === 'most-recent') {
                     filteredPoints.push(group[group.length - 1]);
-                } else if (this.uniquenessMode === 'least-recent') {
+                } else if (uniquenessMode === 'least-recent') {
                     filteredPoints.push(group[0]);
                 }
             }

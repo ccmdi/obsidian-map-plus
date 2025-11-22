@@ -286,13 +286,13 @@ export class MapBasesView extends BasesView {
     protected updateRenderedPoints(points: MapPoint[], autofit: boolean | undefined = undefined): void {
         if (!this.deck) return;
 
-        this.lastPoints = points;
-
         const hasConfiguredCenter = this.center[0] !== 0 || this.center[1] !== 0;
         const configChanged = this.hasConfigMeaningfullyChanged();
         const locationsChanged = haveLocationsChanged(points, this.lastPoints);
 
-        const shouldAutoCenter = this.plugin.settings.autoCenter && !hasConfiguredCenter && (autofit === true || (autofit === undefined && (configChanged || locationsChanged)));
+        const shouldAutoCenter = this.plugin.settings.autoCenter && (autofit === true || (autofit === undefined && (configChanged || locationsChanged)));
+
+        this.lastPoints = points;
 
         updateMapPoints(this.deck, points, {
             containerEl: this.mapEl,
