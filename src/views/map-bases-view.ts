@@ -27,17 +27,20 @@ export class MapBasesView extends BasesView {
     plugin: MapPlugin;
 
     protected deck: Deck<MapViewType[]> | null = null;
-    protected coordinatesProp: BasesPropertyId | null = null;
-    protected coverProp: BasesPropertyId | null = null;
-    protected polygonProp: BasesPropertyId | null = null;
+
+    private coordinatesProp: BasesPropertyId | null = null;
+    private coverProp: BasesPropertyId | null = null;
+    private polygonProp: BasesPropertyId | null = null;
     private mapHeight: number = DEFAULT_MAP_HEIGHT;
-    protected defaultZoom: number = DEFAULT_MAP_ZOOM;
-    protected center: [number, number] = [0, 0];
-    protected markerType: 'pins' | 'dots' = 'pins';
+    private defaultZoom: number = DEFAULT_MAP_ZOOM;
+    private center: [number, number] = [0, 0];
+    private markerType: 'pins' | 'dots' = 'pins';
     private tileLayer: string = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
-    private savedViewState: { latitude: number; longitude: number; zoom: number } | null = null;
+    
+    protected savedViewState: { latitude: number; longitude: number; zoom: number } | null = null;
     protected lastPoints: MapPoint[] = [];
-    private lastConfigState: string = '';
+    protected lastConfigState: Record<string, unknown> = {};
+    protected watchProps = ['center', 'defaultZoom']
 
     constructor(controller: QueryController, scrollEl: HTMLElement, plugin: MapPlugin) {
         super(controller);
@@ -96,28 +99,28 @@ export class MapBasesView extends BasesView {
     }
 
     public onDataUpdated(): void {
-        const configChanged = this.loadConfig();
-
+        this.loadConfig();
         // If map exists, just update points. Otherwise create map.
         if (this.deck) {
-            this.updatePointsOnly(configChanged);
+            this.updatePointsOnly();
         } else {
             this.renderMap();
         }
     }
 
     protected getConfigState(): Record<string, unknown> {
-        return {
-            coordinates: this.coordinatesProp,
-            cover: this.coverProp,
-            polygon: this.polygonProp,
-            markerType: this.markerType,
-            tileLayer: this.tileLayer,
-            center: this.center,
-            zoom: this.defaultZoom,
-        };
+        return this.config.data;
     }
 
+    private hasConfigMeaningfullyChanged(): boolean {
+        return Object.keys(this.getConfigState()).some(key => this.watchProps.includes(key) && this.hasConfigPropertyChanged(key));
+    }
+
+    hasConfigPropertyChanged(property: string): boolean {
+        return this.lastConfigState[property] !== this.getConfigState()[property];
+    }
+
+    
     protected loadConfig(): boolean {
         this.coordinatesProp = this.config.getAsPropertyId('coordinates');
         this.coverProp = this.config.getAsPropertyId('coverImage');
@@ -134,14 +137,11 @@ export class MapBasesView extends BasesView {
 
         this.tileLayer = (this.config.get('tileLayer') as string) || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
 
-        // Serialize current config state (subclasses can override getConfigState)
-        const currentConfigState = JSON.stringify(this.getConfigState());
-        const configChanged = this.lastConfigState !== '' && this.lastConfigState !== currentConfigState;
+        const currentConfigState = this.getConfigState();
+        const configChanged = this.hasConfigMeaningfullyChanged();
 
         if (this.deck && configChanged) {
-            // Check if tile layer changed specifically - requires full re-render
-            const oldConfig = JSON.parse(this.lastConfigState) as Record<string, unknown>;
-            if (oldConfig.tileLayer !== this.tileLayer) {
+            if (this.hasConfigPropertyChanged('tileLayer')) {
                 this.refresh();
             } else {
                 this.lastPoints = []; // Force re-render of layers
@@ -270,7 +270,7 @@ export class MapBasesView extends BasesView {
         return false;
     }
 
-    private updatePointsOnly(configChanged = false): void {
+    private updatePointsOnly(): void {
         if (!this.deck || !this.data) return;
 
         const points = this.extractPointsFromData();
@@ -279,17 +279,20 @@ export class MapBasesView extends BasesView {
             console.warn('onDataUpdated triggered but points are unchanged - skipping update');
             return;
         }
-        const locationsChanged = haveLocationsChanged(points, this.lastPoints);
 
-        this.updateRenderedPoints(points, locationsChanged, configChanged);
+        this.updateRenderedPoints(points);
     }
 
-    protected updateRenderedPoints(points: MapPoint[], locationsChanged: boolean = false, configChanged: boolean = false): void {
+    protected updateRenderedPoints(points: MapPoint[], autofit: boolean | undefined = undefined): void {
         if (!this.deck) return;
 
         this.lastPoints = points;
 
         const hasConfiguredCenter = this.center[0] !== 0 || this.center[1] !== 0;
+        const configChanged = this.hasConfigMeaningfullyChanged();
+        const locationsChanged = haveLocationsChanged(points, this.lastPoints);
+
+        const shouldAutoCenter = this.plugin.settings.autoCenter && !hasConfiguredCenter && (autofit === true || (autofit === undefined && (configChanged || locationsChanged)));
 
         updateMapPoints(this.deck, points, {
             containerEl: this.mapEl,
@@ -300,7 +303,7 @@ export class MapBasesView extends BasesView {
                 markerType: this.markerType,
                 center: hasConfiguredCenter ? this.center : undefined,
                 zoom: hasConfiguredCenter ? this.defaultZoom : undefined,
-                autoCenter: this.plugin.settings.autoCenter && !hasConfiguredCenter && locationsChanged && !configChanged
+                autoCenter: shouldAutoCenter
             }
         });
     }

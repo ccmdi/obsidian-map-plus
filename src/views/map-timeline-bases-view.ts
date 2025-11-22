@@ -107,7 +107,6 @@ export class MapTimelineBasesView extends MapBasesView {
         this.sliderEl.value = '100';
 
         this.sliderEl.addEventListener('input', () => {
-            //TODO: would be preferable to not autofit when stopping playback, but would likely require knowing *what* changed in the config?
             if (this.isPlaying) {
                 this.stopPlayback();
             }
@@ -348,8 +347,7 @@ export class MapTimelineBasesView extends MapBasesView {
     }
 
     public onDataUpdated(): void {
-        const configChanged = this.loadConfig();
-
+        this.loadConfig();
         if (this.dateProperty) {
             this.updateTimelineData();
 
@@ -361,7 +359,7 @@ export class MapTimelineBasesView extends MapBasesView {
                 this.createSlider();
             }
 
-            this.updateRenderedPoints(this.applyTimelineFilter(), !configChanged);
+            this.updateRenderedPoints(this.applyTimelineFilter());
         } else {
             this.destroySlider();
             super.onDataUpdated();
