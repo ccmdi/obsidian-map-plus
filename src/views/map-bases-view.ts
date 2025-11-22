@@ -299,6 +299,7 @@ export class MapBasesView extends BasesView {
         });
 
         this.lastPoints = points;
+        this.lastConfigState = { ...this.config.data };
 
         this.containerEl.removeClass('is-loading');
 
@@ -326,11 +327,6 @@ export class MapBasesView extends BasesView {
         if (!this.deck || !this.data) return;
 
         const points = this.extractPointsFromData();
-
-        if (arePointsEqual(points, this.lastPoints)) {
-            console.warn('onDataUpdated triggered but points are unchanged - skipping update');
-            return;
-        }
 
         this.updateRenderedPoints(points);
     }
