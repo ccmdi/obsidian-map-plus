@@ -29,7 +29,6 @@ export class MapTimelineBasesView extends MapBasesView {
     private playButton: HTMLButtonElement | null = null;
     // private liveUpdateTimeout?: number;
     private allTimelineEntries: TimelineMapPoint[] = [];
-    private mapUpdateTimeout?: number;
     private dataUpdateTimeout?: number;
 
     private isPlaying: boolean = false;
@@ -451,6 +450,20 @@ export class MapTimelineBasesView extends MapBasesView {
     }
 
     public onDataUpdated(): void {
+        // Check for base view config changes first (tileLayer, imageBounds, etc.)
+        if (this.deck) {
+            if(this.hasConfigPropertyChanged('tileLayer') || this.hasConfigPropertyChanged('imageBounds')) {
+                //debounce 500ms
+                if (this.mapUpdateTimeout) {
+                    window.clearTimeout(this.mapUpdateTimeout);
+                }
+                this.mapUpdateTimeout = window.setTimeout(() => {
+                    this.refresh();
+                }, 250);
+                return;
+            }
+        }
+
         if (this.getDateProperty()) {
             this.updateTimelineData();
 

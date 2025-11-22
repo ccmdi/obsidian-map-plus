@@ -1,5 +1,5 @@
 import { App, TFile, setIcon } from 'obsidian';
-import { Deck, PickingInfo, MapViewState, FlyToInterpolator } from '@deck.gl/core';
+import { Deck, PickingInfo, MapViewState, FlyToInterpolator, Layer } from '@deck.gl/core';
 import { BitmapLayer, IconLayer, ScatterplotLayer, PolygonLayer } from '@deck.gl/layers';
 import { TileLayer } from '@deck.gl/geo-layers';
 import type { TileLayerProps, _Tile2DHeader as Tile2DHeader } from '@deck.gl/geo-layers';
@@ -696,7 +696,7 @@ export async function createMapRenderer(config: MapRendererOptions): Promise<Dec
             const markerLayer = createMarkerLayer(deckData, markerType, settings, tagSettings, options, app);
             const polygonLayer = createPolygonLayer(points, tagSettings, markerColor, options, app);
 
-            const layers = [backgroundLayer];
+            const layers: Layer[] = [backgroundLayer];
             if (polygonLayer) layers.push(polygonLayer);
             layers.push(markerLayer);
 

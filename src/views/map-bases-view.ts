@@ -30,7 +30,7 @@ export class MapBasesView extends BasesView {
     
     protected savedViewState: { latitude: number; longitude: number; zoom: number } | null = null;
     protected lastPoints: MapPoint[] = [];
-    protected watchProps = ['center', 'defaultZoom'];
+    protected mapUpdateTimeout?: number;
     protected lastConfigState: Record<string, unknown> = {};
 
     constructor(controller: QueryController, scrollEl: HTMLElement, plugin: MapPlugin) {
@@ -171,6 +171,15 @@ export class MapBasesView extends BasesView {
     public onDataUpdated(): void {
         // If map exists, just update points. Otherwise create map.
         if (this.deck) {
+            if(this.hasConfigPropertyChanged('tileLayer') || this.hasConfigPropertyChanged('imageBounds')) {
+                //debounce 500ms
+                if (this.mapUpdateTimeout) {
+                    window.clearTimeout(this.mapUpdateTimeout);
+                }
+                this.mapUpdateTimeout = window.setTimeout(() => {
+                    this.refresh();
+                }, 1500);
+            }
             this.updateMap();
         } else {
             this.renderMap();
