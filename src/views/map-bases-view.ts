@@ -287,6 +287,9 @@ export class MapBasesView extends BasesView {
                 onTilesLoaded: () => {
                     tilesLoaded = true;
                     hideOverlay();
+                },
+                onSetMapCenter: (lat: number, lng: number) => {
+                    this.config.set('center', `${lat}, ${lng}`);
                 }
             }
         });

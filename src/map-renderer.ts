@@ -67,6 +67,7 @@ export interface MapRendererOptions {
         autoCenter?: boolean;
         onMarkerClick?: (point: MapPoint, event: MjolnirEvent) => void;
         onTilesLoaded?: () => void;
+        onSetMapCenter?: (lat: number, lng: number) => void;
     };
 }
 
@@ -732,6 +733,26 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
                     .setIcon('copy')
                     .onClick(async () => {
                         await navigator.clipboard.writeText(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+                    });
+            });
+
+            if (options.onSetMapCenter) {
+                menu.addItem((item) => {
+                    item
+                        .setTitle('Set as map center')
+                        .setIcon('map-pin')
+                        .onClick(() => {
+                            options.onSetMapCenter?.(lat, lng);
+                        });
+                });
+            }
+
+            menu.addItem((item) => {
+                item
+                    .setTitle('Open in web')
+                    .setIcon('globe')
+                    .onClick(() => {
+                        window.open(`https://www.google.com/maps?q=${lat.toFixed(6)},${lng.toFixed(6)}`, '_blank');
                     });
             });
 
