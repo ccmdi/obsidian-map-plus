@@ -10,6 +10,7 @@ import MapPlugin from '../main';
 import { MapBasesView } from './map-bases-view';
 
 export const MapTimelineBasesViewType = 'map-timeline';
+const MAP_SLIDER_UPDATE_DEBOUNCE_TIME = 10;
 const MAP_UPDATE_DEBOUNCE_TIME = 50;
 
 interface TimelineMapPoint extends MapPoint {
@@ -29,11 +30,13 @@ export class MapTimelineBasesView extends MapBasesView {
     // private liveUpdateTimeout?: number;
     private allTimelineEntries: TimelineMapPoint[] = [];
     private mapUpdateTimeout?: number;
-    
+    private dataUpdateTimeout?: number;
+
     private isPlaying: boolean = false;
     private playbackInterval: number | null = null;
     private playbackSpeed: number = 1;
     private controlsExpanded: boolean = false;
+    private programmaticSliderUpdate: boolean = false;
 
     constructor(controller: QueryController, scrollEl: HTMLElement, plugin: MapPlugin) {
         super(controller, scrollEl, plugin);
@@ -146,6 +149,7 @@ export class MapTimelineBasesView extends MapBasesView {
             if (this.isPlaying) {
                 this.stopPlayback();
             }
+            this.programmaticSliderUpdate = true;
             this.updateDateRange();
             this.updateDateInput(dateInputEl);
         });
@@ -394,7 +398,17 @@ export class MapTimelineBasesView extends MapBasesView {
                 this.createSlider();
             }
 
-            this.updateRenderedPoints(this.applyTimelineFilter());
+            if (this.dataUpdateTimeout) {
+                window.clearTimeout(this.dataUpdateTimeout);
+            }
+
+            const shouldAutofit = !this.programmaticSliderUpdate;
+            this.programmaticSliderUpdate = false;
+
+            this.dataUpdateTimeout = window.setTimeout(() => {
+                const autofit = shouldAutofit ? undefined : false;
+                this.updateRenderedPoints(this.applyTimelineFilter(), autofit);
+            }, MAP_SLIDER_UPDATE_DEBOUNCE_TIME);
         } else {
             this.destroySlider();
             super.onDataUpdated();
