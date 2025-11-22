@@ -413,7 +413,6 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
     const markerColor = options.markerColor || 'var(--color-accent)';
     const tileLayer = options.tileLayer || 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png';
 
-    // Detect if tileLayer is a local file (no protocol) or URL
     const isLocalImage = !tileLayer.startsWith('http://') && !tileLayer.startsWith('https://');
 
     containerEl.empty();

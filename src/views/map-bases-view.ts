@@ -653,7 +653,7 @@ export class MapBasesView extends BasesView {
                         placeholder: 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}.png',
                     },
                     {
-                        displayName: 'Image bounds (for local images)',
+                        displayName: 'Image bounds',
                         type: 'text',
                         key: 'imageBounds',
                         placeholder: '[[minLat, minLng], [maxLat, maxLng]]',

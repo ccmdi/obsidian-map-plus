@@ -559,3 +559,11 @@
         right: auto;
     }
 }
+
+/* should be specific enough */
+.input-row:has(input[placeholder="[[minLat, minLng], [maxLat, maxLng]]"]) .input-row-label::after {
+    content: " (local images only)";
+    color: var(--text-muted);
+    font-style: italic;
+    font-size: 0.9em;
+}
