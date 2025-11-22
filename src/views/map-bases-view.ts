@@ -131,6 +131,7 @@ export class MapBasesView extends BasesView {
         if (!boundsStr || typeof boundsStr !== 'string') return undefined;
 
         try {
+            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
             const parsed = JSON.parse(boundsStr);
             if (Array.isArray(parsed) && parsed.length === 2 &&
                 Array.isArray(parsed[0]) && parsed[0].length === 2 &&
@@ -191,7 +192,7 @@ export class MapBasesView extends BasesView {
         }
     }
 
-    protected async renderMap(): Promise<void> {
+    protected renderMap(): void {
         if (!this.data) {
             this.containerEl.removeClass('is-loading');
             return;
@@ -269,7 +270,7 @@ export class MapBasesView extends BasesView {
             zoomToUse = this.getDefaultZoom();
         }
 
-        this.deck = await createMapRenderer({
+        this.deck = createMapRenderer({
             containerEl: this.mapEl,
             points,
             app: this.app,

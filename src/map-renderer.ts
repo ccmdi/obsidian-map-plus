@@ -404,7 +404,7 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
     }
 }
 
-export async function createMapRenderer(config: MapRendererOptions): Promise<Deck<MapViewType[]>> {
+export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[]> {
     const { containerEl, points, app, settings, tagSettings, options } = config;
     containerEl.addClass('map-container');
 

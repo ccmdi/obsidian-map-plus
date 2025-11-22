@@ -321,11 +321,9 @@ export class MapTimelineBasesView extends MapBasesView {
         let offsetX = 0;
         let offsetY = 0;
 
-        // Add drag handle cursor hint
-        element.style.cursor = 'move';
+        element.addClass('map-draggable');
 
         const onMouseDown = (e: MouseEvent) => {
-            // Only start drag on container itself, not on inputs/buttons/slider
             const target = e.target as HTMLElement;
             if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'BUTTON') {
                 return;
@@ -333,13 +331,11 @@ export class MapTimelineBasesView extends MapBasesView {
 
             isDragging = true;
             const rect = element.getBoundingClientRect();
-            const containerRect = this.mapEl.getBoundingClientRect();
 
             offsetX = e.clientX - rect.left;
             offsetY = e.clientY - rect.top;
 
-            element.style.position = 'absolute';
-            element.style.zIndex = '1000';
+            element.addClass('dragging');
 
             e.preventDefault();
         };
@@ -357,10 +353,9 @@ export class MapTimelineBasesView extends MapBasesView {
             x = Math.max(0, Math.min(x, containerRect.width - elementRect.width));
             y = Math.max(0, Math.min(y, containerRect.height - elementRect.height));
 
-            element.style.left = `${x}px`;
-            element.style.top = `${y}px`;
-            element.style.bottom = 'auto';
-            element.style.right = 'auto';
+            element.setCssProps({'left': `${x}px`});
+            element.setCssProps({'top': `${y}px`});
+            element.addClass('move');
         };
 
         const onMouseUp = () => {
