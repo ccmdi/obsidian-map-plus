@@ -1,4 +1,4 @@
-import { App, TFile, setIcon } from 'obsidian';
+import { App, TFile, setIcon, Menu } from 'obsidian';
 import { Deck, PickingInfo, MapViewState, FlyToInterpolator, Layer } from '@deck.gl/core';
 import { BitmapLayer, IconLayer, ScatterplotLayer, PolygonLayer } from '@deck.gl/layers';
 import { TileLayer } from '@deck.gl/geo-layers';
@@ -162,13 +162,18 @@ function getIconSVG(iconName: string, strokeWidth: number, fill: boolean): strin
 function handlePointClick(info: PickingInfo<DeckDataPoint>, event: MjolnirEvent, options: MapRendererOptions['options'], app: App) {
     if (!info.object) return;
 
+    // Ignore right-clicks (button === 2)
+    const srcEvent = event?.srcEvent;
+    if (srcEvent && 'button' in srcEvent && srcEvent.button === 2) {
+        return;
+    }
+
     if (options.onMarkerClick) {
         options.onMarkerClick(info.object.point, event);
         return;
     }
 
     if (info.object.point.file) {
-        const srcEvent = event?.srcEvent;
         const newTab =
             (srcEvent && 'button' in srcEvent && srcEvent.button === 1) ||
             srcEvent?.ctrlKey ||
@@ -701,6 +706,37 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
 
             return layers;
         })(),
+    });
+
+    mapCanvas.addEventListener('contextmenu', (e: MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const rect = mapCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // @ts-expect-error - accessing internal viewState
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
+        const viewState = deck.viewState?.MapView;
+        
+        if (viewState) {
+            const viewport = deck.getViewports()[0];
+            const [lng, lat] = viewport?.unproject([x, y]) || [0, 0];
+
+            const menu = new Menu();
+            
+            menu.addItem((item) => {
+                item
+                    .setTitle('Copy coordinates')
+                    .setIcon('copy')
+                    .onClick(async () => {
+                        await navigator.clipboard.writeText(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+                    });
+            });
+
+            menu.showAtMouseEvent(e);
+        }
     });
 
     return deck;
