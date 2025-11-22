@@ -104,6 +104,8 @@ export class MapTimelineBasesView extends MapBasesView {
     private createSlider(): void {
         const sliderContainer = this.mapEl.createDiv({ cls: 'bases-timeline-slider' });
 
+        this.makeDraggable(sliderContainer);
+
         const inputContainer = sliderContainer.createDiv({ cls: 'timeline-input-container' });
 
         const dateInputEl = inputContainer.createEl('input', {
@@ -313,6 +315,68 @@ export class MapTimelineBasesView extends MapBasesView {
             this.sliderEl = null;
             this.playButton = null;
         }
+    }
+
+    private makeDraggable(element: HTMLElement): void {
+        let isDragging = false;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        // Add drag handle cursor hint
+        element.style.cursor = 'move';
+
+        const onMouseDown = (e: MouseEvent) => {
+            // Only start drag on container itself, not on inputs/buttons/slider
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'BUTTON') {
+                return;
+            }
+
+            isDragging = true;
+            const rect = element.getBoundingClientRect();
+            const containerRect = this.mapEl.getBoundingClientRect();
+
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
+
+            element.style.position = 'absolute';
+            element.style.zIndex = '1000';
+
+            e.preventDefault();
+        };
+
+        const onMouseMove = (e: MouseEvent) => {
+            if (!isDragging) return;
+
+            const containerRect = this.mapEl.getBoundingClientRect();
+            const elementRect = element.getBoundingClientRect();
+
+            let x = e.clientX - containerRect.left - offsetX;
+            let y = e.clientY - containerRect.top - offsetY;
+
+            // Constrain to container bounds
+            x = Math.max(0, Math.min(x, containerRect.width - elementRect.width));
+            y = Math.max(0, Math.min(y, containerRect.height - elementRect.height));
+
+            element.style.left = `${x}px`;
+            element.style.top = `${y}px`;
+            element.style.bottom = 'auto';
+            element.style.right = 'auto';
+        };
+
+        const onMouseUp = () => {
+            isDragging = false;
+        };
+
+        element.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
+
+        // Clean up on destroy
+        this.register(() => {
+            document.removeEventListener('mousemove', onMouseMove);
+            document.removeEventListener('mouseup', onMouseUp);
+        });
     }
 
     private togglePlayback(): void {
