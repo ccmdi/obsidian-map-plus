@@ -129,8 +129,7 @@ export class MapBasesView extends BasesView {
         if (!boundsStr || typeof boundsStr !== 'string') return undefined;
 
         try {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-            const parsed = JSON.parse(boundsStr);
+            const parsed = JSON.parse(boundsStr) as unknown[];
             if (Array.isArray(parsed) && parsed.length === 2 &&
                 Array.isArray(parsed[0]) && parsed[0].length === 2 &&
                 Array.isArray(parsed[1]) && parsed[1].length === 2) {
@@ -377,9 +376,7 @@ export class MapBasesView extends BasesView {
 
             const fileCache = this.app.metadataCache.getFileCache(entry.file);
             if (fileCache?.frontmatter?.tags) {
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                const tags = fileCache.frontmatter.tags;
-                point.tags = Array.isArray(tags) ? tags : [tags];
+                point.tags = fileCache.frontmatter.tags as string[];
             }
 
             if (coverProp) {
@@ -554,8 +551,7 @@ export class MapBasesView extends BasesView {
             // Handle string value as JSON array
             if (value instanceof StringValue) {
                 try {
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                    const parsed = JSON.parse(value.toString().trim());
+                    const parsed = JSON.parse(value.toString().trim()) as unknown[];
                     if (Array.isArray(parsed)) {
                         const coords: [number, number][] = [];
                         for (const item of parsed) {
@@ -608,7 +604,6 @@ export class MapBasesView extends BasesView {
 
         const performSearch = async (query: string) => {
             try {
-                // Using Photon API (free, no API key, OSM-based)
                 const response = await requestUrl(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`);
                 const data = response.json as PhotonResponse;
 

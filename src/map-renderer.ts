@@ -465,6 +465,7 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
                 _offset: number;
                 tile: Tile2DHeader<HTMLImageElement>;
             }) => {
+                //TODO: replace with boundingBox
                 // eslint-disable-next-line @typescript-eslint/no-deprecated
                 const bbox = props.tile.bbox;
                 if (!('west' in bbox)) return null;
@@ -497,8 +498,7 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
     const tooltip = containerEl.createEl('div', { cls: 'map-tooltip' });
 
     const numPoints = points.length;
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const deckData: DeckDataPoint[] = new Array(numPoints);
+    const deckData: DeckDataPoint[] = new Array<DeckDataPoint>(numPoints);
 
     for (let i = 0; i < numPoints; i++) {
         const point = points[i];
