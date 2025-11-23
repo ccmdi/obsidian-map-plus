@@ -13,43 +13,44 @@ export namespace LatLng {
 		readonly __brand: 'LatLng';
 	};
 
-	// Validation function that narrows the type
-	export function parse(input: Like): Verified | null {
-		let lat: number;
-		let lng: number;
-
-		if (typeof input === 'string') {
-			const parts = input.split(',').map(s => parseFloat(s.trim()));
-			if (parts.length !== 2) return null;
-			[lat, lng] = parts;
-		} else if (Array.isArray(input)) {
-			[lat, lng] = input;
-		} else if ('lat' in input && 'lng' in input) {
-			lat = input.lat;
-			lng = input.lng;
-		} else if ('latitude' in input && 'longitude' in input) {
-			lat = input.latitude;
-			lng = input.longitude;
-		} else {
-			return null;
+	// Main parse function - handles Obsidian-specific types (ListValue, StringValue, arrays, strings)
+	export function parse(value: unknown): Verified | null {
+		// Handle ListValue from frontmatter: [40.7128, -74.0060]
+		if (value && typeof value === 'object' && 'length' in value && typeof value.length === 'function') {
+			const listValue = value as { length: () => number; get: (index: number) => unknown };
+			if (listValue.length() >= 2) {
+				const lat = parseCoordinate(listValue.get(0));
+				const lng = parseCoordinate(listValue.get(1));
+				if (lat !== null && lng !== null) {
+					return from(lat, lng);
+				}
+			}
 		}
 
-		// Validation
-		if (
-			typeof lat !== 'number' ||
-			typeof lng !== 'number' ||
-			!isFinite(lat) ||
-			!isFinite(lng) ||
-			lat < -90 ||
-			lat > 90 ||
-			lng < -180 ||
-			lng > 180
-		) {
-			return null;
+		// Handle plain JavaScript array from JSON.parse: [40.7128, -74.0060]
+		if (Array.isArray(value) && value.length >= 2) {
+			const lat = parseCoordinate(value[0]);
+			const lng = parseCoordinate(value[1]);
+			if (lat !== null && lng !== null) {
+				return from(lat, lng);
+			}
 		}
 
-		// Return branded type
-		return { lat, lng, __brand: 'LatLng' } as Verified;
+		// Handle string: "40.7128, -74.0060" or StringValue wrapper
+		if (value && typeof value === 'object' && 'toString' in value) {
+			const str = (value as { toString: () => string }).toString();
+			const parts = str.split(',').map(p => parseFloat(p.trim()));
+			if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+				return from(parts[0], parts[1]);
+			}
+		} else if (typeof value === 'string') {
+			const parts = value.split(',').map(p => parseFloat(p.trim()));
+			if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
+				return from(parts[0], parts[1]);
+			}
+		}
+
+		return null;
 	}
 
 	// Parse or return default value
@@ -137,5 +138,24 @@ export namespace LatLng {
 	// Create from lat/lng numbers (unsafe, no validation)
 	export function fromUnsafe(lat: number, lng: number): Verified {
 		return { lat, lng, __brand: 'LatLng' } as Verified;
+	}
+
+	// Parse coordinate value from various sources (Obsidian-specific)
+	// Handles NumberValue, StringValue, and primitive types
+	export function parseCoordinate(value: unknown): number | null {
+		// Handle Obsidian's NumberValue/StringValue types
+		if (value && typeof value === 'object' && 'toString' in value) {
+			const strValue = (value as { toString: () => string }).toString();
+			const num = parseFloat(strValue);
+			return isNaN(num) ? null : num;
+		}
+		if (typeof value === 'string') {
+			const num = parseFloat(value);
+			return isNaN(num) ? null : num;
+		}
+		if (typeof value === 'number') {
+			return isNaN(value) ? null : value;
+		}
+		return null;
 	}
 }

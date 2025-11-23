@@ -113,7 +113,7 @@ export class MapBasesView extends BasesView {
     private getCenter(): LatLng.Verified {
         const centerRaw = this.config.get('center');
         if (!centerRaw) return LatLng.fromUnsafe(0, 0);
-        const parsed = this.parseLatLng(centerRaw);
+        const parsed = LatLng.parse(centerRaw);
         return parsed ?? LatLng.fromUnsafe(0, 0);
     }
 
@@ -151,12 +151,12 @@ export class MapBasesView extends BasesView {
         if(this.hasConfigPropertyChanged('center')) {
             const centerRaw = this.config.get('center');
             // Meaningful if it's empty OR if it's valid
-            if (!centerRaw || this.parseLatLng(centerRaw) !== null) {
+            if (!centerRaw || LatLng.parse(centerRaw) !== null) {
                 return true;
             }
         }
         if (this.hasConfigPropertyChanged('defaultZoom')) {
-            const center = this.parseLatLng(this.config.get('center'));
+            const center = LatLng.parse(this.config.get('center'));
             // Only meaningful if center is valid AND non-empty (non-zero)
             if (center !== null && (center.lat !== 0 || center.lng !== 0)) {
                 return true;
@@ -439,7 +439,7 @@ export class MapBasesView extends BasesView {
         if (coordinatesProp) {
             try {
                 const value = entry.getValue(coordinatesProp);
-                const coords = this.parseLatLng(value);
+                const coords = LatLng.parse(value);
                 if (coords) return coords;
             } catch (error) {
                 console.error(`Error extracting coordinates for ${entry.file.name}:`, error);
@@ -455,8 +455,8 @@ export class MapBasesView extends BasesView {
                     const lngValue = this.extractFromFrontmatter(fileCache.frontmatter, this.plugin.settings.lngKey);
 
                     if (latValue !== undefined && lngValue !== undefined) {
-                        const lat = this.parseCoordinate(latValue);
-                        const lng = this.parseCoordinate(lngValue);
+                        const lat = LatLng.parseCoordinate(latValue);
+                        const lng = LatLng.parseCoordinate(lngValue);
                         if (lat !== null && lng !== null) {
                             return LatLng.from(lat, lng);
                         }
@@ -486,63 +486,13 @@ export class MapBasesView extends BasesView {
         return frontmatter[key];
     }
 
-    private parseCoordinate(value: unknown): number | null {
-        if (value instanceof NumberValue) {
-            const numData = Number(value.toString());
-            return isNaN(numData) ? null : numData;
-        }
-        if (value instanceof StringValue) {
-            const num = parseFloat(value.toString());
-            return isNaN(num) ? null : num;
-        }
-        if (typeof value === 'string') {
-            const num = parseFloat(value);
-            return isNaN(num) ? null : num;
-        }
-        if (typeof value === 'number') {
-            return isNaN(value) ? null : value;
-        }
-        return null;
-    }
-
-    private parseLatLng(value: unknown): LatLng.Verified | null {
-        // Handle ListValue from frontmatter: [40.7128, -74.0060]
-        if (value instanceof ListValue && value.length() >= 2) {
-            const lat = this.parseCoordinate(value.get(0));
-            const lng = this.parseCoordinate(value.get(1));
-            if (lat !== null && lng !== null) {
-                return LatLng.from(lat, lng);
-            }
-        }
-
-        // Handle plain JavaScript array from JSON.parse: [40.7128, -74.0060]
-        if (Array.isArray(value) && value.length >= 2) {
-            const lat = this.parseCoordinate(value[0]);
-            const lng = this.parseCoordinate(value[1]);
-            if (lat !== null && lng !== null) {
-                return LatLng.from(lat, lng);
-            }
-        }
-
-        // Handle string: "40.7128, -74.0060" or StringValue wrapper
-        if (value instanceof StringValue || typeof value === 'string') {
-            const str = value instanceof StringValue ? value.toString() : value;
-            const parts = str.split(',').map(p => parseFloat(p.trim()));
-            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                return LatLng.from(parts[0], parts[1]);
-            }
-        }
-
-        return null;
-    }
-
     private extractPolygonCoordinates(value: unknown): LatLng.Verified[] | null {
         try {
             // Handle ListValue (array from frontmatter)
             if (value instanceof ListValue) {
                 const coords: LatLng.Verified[] = [];
                 for (let i = 0; i < value.length(); i++) {
-                    const coord = this.parseLatLng(value.get(i));
+                    const coord = LatLng.parse(value.get(i));
                     if (coord) coords.push(coord);
                 }
                 return coords.length > 0 ? coords : null;
@@ -555,7 +505,7 @@ export class MapBasesView extends BasesView {
                     if (Array.isArray(parsed)) {
                         const coords: LatLng.Verified[] = [];
                         for (const item of parsed) {
-                            const coord = this.parseLatLng(item);
+                            const coord = LatLng.parse(item);
                             if (coord) coords.push(coord);
                         }
                         return coords.length > 0 ? coords : null;
