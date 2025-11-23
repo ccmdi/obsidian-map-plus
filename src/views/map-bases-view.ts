@@ -14,6 +14,7 @@ import { MapView as MapViewType } from '@deck.gl/core';
 import { createMapRenderer, MapPoint, updateMapPoints } from '../map-renderer';
 import MapPlugin from '../main';
 import { haveLocationsChanged } from '../pointutils';
+import { currentViewState } from '../map-renderer';
 
 export const MapBasesViewType = 'map';
 
@@ -75,7 +76,7 @@ export class MapBasesView extends BasesView {
     private destroyMap(): void {
         if (this.deck) {
             try {
-                const viewState = this.deck.props.viewState?.MapView;
+                const viewState = currentViewState;
                 if (viewState) {
                     this.savedViewState = viewState;
                 }

@@ -16,6 +16,8 @@ function easeCubic(t: number): number {
 
 type PropertyValue = string | number | boolean | string[] | null;
 
+export let currentViewState: MapViewState | null = null;
+
 interface MapProperty {
     name: string;
     value: PropertyValue;
@@ -708,6 +710,9 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
 
             return layers;
         })(),
+        onViewStateChange: ({ viewState: newViewState }) => {
+            currentViewState = newViewState;
+        }
     });
 
     mapCanvas.addEventListener('contextmenu', (e: MouseEvent) => {
@@ -717,9 +722,8 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
         const rect = mapCanvas.getBoundingClientRect();
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
-        
-        const viewState = deck.props.viewState?.MapView;
-        
+        const viewState = currentViewState;
+
         if (viewState) {
             const viewport = deck.getViewports()[0];
             const [lng, lat] = viewport?.unproject([x, y]) || [0, 0];
