@@ -129,6 +129,7 @@ export class MapSettingTab extends PluginSettingTab {
                 .setValue(this.plugin.settings.enableSearchGeocoding)
                 .onChange(async (value) => {
                     this.plugin.settings.enableSearchGeocoding = value;
+                    this.plugin.refreshAllMapViews();
                     await this.plugin.saveSettings();
                 }));
 

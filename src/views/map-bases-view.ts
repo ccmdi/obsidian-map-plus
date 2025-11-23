@@ -589,9 +589,53 @@ export class MapBasesView extends BasesView {
             }
         };
 
+        const handleCoordinatePaste = (query: string): boolean => {
+            const parsed = LatLng.parse(query);
+            if (parsed && this.deck) {
+                this.deck.setProps({
+                    initialViewState: {
+                        MapView: {
+                            latitude: parsed.lat,
+                            longitude: parsed.lng,
+                            zoom: 12,
+                            transitionDuration: 800,
+                            transitionInterpolator: new FlyToInterpolator(),
+                        }
+                    }
+                });
+                searchInput.value = LatLng.toString(parsed);
+                resultsContainer.empty();
+                resultsContainer.removeClass('visible');
+                return true;
+            }
+            return false;
+        };
+
+        searchInput.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const pastedText = e.clipboardData?.getData('text')?.trim() || '';
+
+            if (handleCoordinatePaste(pastedText)) {
+                return;
+            }
+
+            searchInput.value = pastedText;
+            searchInput.dispatchEvent(new Event('input'));
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter') {
+                const query = searchInput.value.trim();
+
+                if (handleCoordinatePaste(query)) {
+                    return;
+                }
+            }
+        });
+
         searchInput.addEventListener('input', () => {
             const query = searchInput.value.trim();
-            
+
             if (searchTimeout) {
                 window.clearTimeout(searchTimeout);
             }
