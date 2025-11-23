@@ -336,11 +336,11 @@ export class MapBasesView extends BasesView {
         const configChanged = this.hasConfigMeaningfullyChanged();
 
         this.lastConfigState = { ...this.config.data };
-
-        const shouldAutoCenter = this.plugin.settings.autoCenter && (autofit === true || (autofit === undefined && (locationsChanged || configChanged)));
-
         this.lastPoints = points;
 
+        const shouldAutoCenter = this.plugin.settings.autoCenter && !hasConfiguredCenter && (autofit === true || (autofit === undefined && (locationsChanged || configChanged)));
+        const shouldUseConfiguredCenter = hasConfiguredCenter && (autofit !== false); //TODO: slight hack
+        
         updateMapPoints(this.deck, points, {
             containerEl: this.mapEl,
             app: this.app,
@@ -348,8 +348,8 @@ export class MapBasesView extends BasesView {
             tagSettings: this.plugin.tagSettings,
             options: {
                 markerType: this.getMarkerType(),
-                center: hasConfiguredCenter ? center : undefined,
-                zoom: hasConfiguredCenter ? this.getDefaultZoom() : undefined,
+                center: shouldUseConfiguredCenter ? center : undefined,
+                zoom: shouldUseConfiguredCenter ? this.getDefaultZoom() : undefined,
                 autoCenter: shouldAutoCenter
             }
         });

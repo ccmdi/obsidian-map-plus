@@ -378,7 +378,7 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
 
     const hasConfiguredCenter = options.center && (options.center[0] !== 0 || options.center[1] !== 0);
 
-    if (autoCenter && hasConfiguredCenter && options.zoom) {
+    if (hasConfiguredCenter && options.zoom) {
         if (!options.center) return;
         shouldTransition = true;
         targetViewState = {
