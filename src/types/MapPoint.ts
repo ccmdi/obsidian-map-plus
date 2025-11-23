@@ -20,6 +20,7 @@ export interface MapPoint {
     polygon?: LatLng.Verified[];
 }
 
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace MapPoint {
     export function areSamePlace(point1: MapPoint, point2: MapPoint): boolean {
         return point1.location.lat === point2.location.lat && point1.location.lng === point2.location.lng;

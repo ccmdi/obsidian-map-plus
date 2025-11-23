@@ -3,7 +3,6 @@ import {
     BasesPropertyId,
     BasesView,
     ListValue,
-    NumberValue,
     QueryController,
     StringValue,
     ViewOption,
@@ -460,7 +459,7 @@ export class MapBasesView extends BasesView {
                     const latValue = extractFromFrontmatter(fileCache.frontmatter, this.plugin.settings.latKey);
                     const lngValue = extractFromFrontmatter(fileCache.frontmatter, this.plugin.settings.lngKey);
 
-                    return LatLng.parse(`${latValue}, ${lngValue}`);
+                    return LatLng.parse([latValue, lngValue]);
                 }
             } catch (error) {
                 console.error(`Error extracting coordinates from frontmatter for ${entry.file.name}:`, error);
@@ -482,7 +481,7 @@ export class MapBasesView extends BasesView {
             }
             // Handle string value as JSON array
             else if (value instanceof StringValue) {
-                const parsed = JSON.parse(value.toString().trim());
+                const parsed = JSON.parse(value.toString().trim()) as unknown[];
                 if (Array.isArray(parsed)) {
                     items = parsed;
                 }

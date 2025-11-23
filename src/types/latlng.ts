@@ -1,3 +1,4 @@
+// eslint-disable-next-line @typescript-eslint/no-namespace
 export namespace LatLng {
 	// Unverified input - accepts various formats
 	export type Like =
