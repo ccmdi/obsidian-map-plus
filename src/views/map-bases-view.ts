@@ -20,6 +20,7 @@ import { MapPoint } from '../types/MapPoint';
 
 export const MapBasesViewType = 'map';
 export const SEARCH_DEBOUNCE_TIME = 300;
+export const SEARCH_TRANSITION_DURATION = 1600;
 
 const DEFAULT_MAP_HEIGHT = 400;
 const DEFAULT_MAP_ZOOM = 4;
@@ -535,6 +536,7 @@ export class MapBasesView extends BasesView {
 
         let searchTimeout: number;
         let currentResults: Array<{ lat: number; lng: number; name: string; display_name: string }> = [];
+        let selectedResultIndex = -1;
 
         const performSearch = async (query: string) => {
             try {
@@ -553,13 +555,14 @@ export class MapBasesView extends BasesView {
                 }));
 
                 resultsContainer.empty();
-                
+                selectedResultIndex = -1;
+
                 if (currentResults.length > 0) {
-                    currentResults.forEach((result) => {
+                    currentResults.forEach((result, index) => {
                         const resultItem = resultsContainer.createDiv({ cls: 'map-search-result-item' });
                         resultItem.textContent = result.display_name;
-                        
-                        resultItem.addEventListener('click', () => {
+
+                        const selectResult = () => {
                             if (this.deck) {
                                 this.deck.setProps({
                                     initialViewState: {
@@ -567,7 +570,7 @@ export class MapBasesView extends BasesView {
                                             latitude: result.lat,
                                             longitude: result.lng,
                                             zoom: 12,
-                                            transitionDuration: 800,
+                                            transitionDuration: SEARCH_TRANSITION_DURATION,
                                             transitionInterpolator: new FlyToInterpolator(),
                                         }
                                     }
@@ -576,6 +579,12 @@ export class MapBasesView extends BasesView {
                             searchInput.value = result.name || result.display_name;
                             resultsContainer.empty();
                             resultsContainer.removeClass('visible');
+                            selectedResultIndex = -1;
+                        };
+
+                        resultItem.addEventListener('click', selectResult);
+                        resultItem.addEventListener('mouseenter', () => {
+                            updateSelectedResult(index);
                         });
                     });
                     resultsContainer.addClass('visible');
@@ -589,6 +598,18 @@ export class MapBasesView extends BasesView {
             }
         };
 
+        const updateSelectedResult = (index: number) => {
+            selectedResultIndex = index;
+            const resultItems = resultsContainer.querySelectorAll('.map-search-result-item');
+            resultItems.forEach((item, i) => {
+                if (i === index) {
+                    item.addClass('selected');
+                } else {
+                    item.removeClass('selected');
+                }
+            });
+        };
+
         const handleCoordinatePaste = (query: string): boolean => {
             const parsed = LatLng.parse(query);
             if (parsed && this.deck) {
@@ -598,7 +619,7 @@ export class MapBasesView extends BasesView {
                             latitude: parsed.lat,
                             longitude: parsed.lng,
                             zoom: 12,
-                            transitionDuration: 800,
+                            transitionDuration: SEARCH_TRANSITION_DURATION,
                             transitionInterpolator: new FlyToInterpolator(),
                         }
                     }
@@ -606,6 +627,7 @@ export class MapBasesView extends BasesView {
                 searchInput.value = LatLng.toString(parsed);
                 resultsContainer.empty();
                 resultsContainer.removeClass('visible');
+                selectedResultIndex = -1;
                 return true;
             }
             return false;
@@ -624,12 +646,50 @@ export class MapBasesView extends BasesView {
         });
 
         searchInput.addEventListener('keydown', (e) => {
-            if (e.key === 'Enter') {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (currentResults.length > 0) {
+                    const newIndex = selectedResultIndex < currentResults.length - 1 ? selectedResultIndex + 1 : selectedResultIndex;
+                    updateSelectedResult(newIndex);
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (currentResults.length > 0 && selectedResultIndex > 0) {
+                    updateSelectedResult(selectedResultIndex - 1);
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
                 const query = searchInput.value.trim();
 
                 if (handleCoordinatePaste(query)) {
                     return;
                 }
+
+                // If a result is selected, navigate to it
+                if (selectedResultIndex >= 0 && selectedResultIndex < currentResults.length) {
+                    const result = currentResults[selectedResultIndex];
+                    if (this.deck) {
+                        this.deck.setProps({
+                            initialViewState: {
+                                MapView: {
+                                    latitude: result.lat,
+                                    longitude: result.lng,
+                                    zoom: 12,
+                                    transitionDuration: SEARCH_TRANSITION_DURATION,
+                                    transitionInterpolator: new FlyToInterpolator(),
+                                }
+                            }
+                        });
+                    }
+                    searchInput.value = result.name || result.display_name;
+                    resultsContainer.empty();
+                    resultsContainer.removeClass('visible');
+                    selectedResultIndex = -1;
+                }
+            } else if (e.key === 'Escape') {
+                resultsContainer.empty();
+                resultsContainer.removeClass('visible');
+                selectedResultIndex = -1;
             }
         });
 
@@ -646,6 +706,13 @@ export class MapBasesView extends BasesView {
                 return;
             }
 
+            // Don't perform geocoding search if it's a valid LatLng
+            if (LatLng.parse(query)) {
+                resultsContainer.empty();
+                resultsContainer.removeClass('visible');
+                return;
+            }
+
             searchTimeout = window.setTimeout(() => {
                 void performSearch(query);
             }, SEARCH_DEBOUNCE_TIME);
@@ -654,7 +721,9 @@ export class MapBasesView extends BasesView {
         // Close results when clicking outside
         document.addEventListener('click', (e) => {
             if (!searchContainer.contains(e.target as Node)) {
+                resultsContainer.empty();
                 resultsContainer.removeClass('visible');
+                selectedResultIndex = -1;
             }
         });
     }

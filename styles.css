@@ -627,6 +627,7 @@
     border-bottom: none;
 }
 
-.map-search-result-item:hover {
+.map-search-result-item:hover,
+.map-search-result-item.selected {
     background: var(--background-modifier-hover);
 }
