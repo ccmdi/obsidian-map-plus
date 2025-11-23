@@ -11,12 +11,12 @@ import {
 } from 'obsidian';
 import { Deck, FlyToInterpolator, MapViewState } from '@deck.gl/core';
 import { MapView as MapViewType } from '@deck.gl/core';
-import { createMapRenderer, MapPoint, updateMapPoints } from '../map-renderer';
+import { createMapRenderer, updateMapPoints } from '../map-renderer';
 import MapPlugin from '../main';
-import { haveLocationsChanged } from '../pointutils';
 import { currentViewState } from '../map-renderer';
-import { LatLng } from '../types/latlng';
+import { LatLng } from '../types/LatLng';
 import { extractFromFrontmatter } from '../utils';
+import { MapPoint } from '../types/MapPoint';
 
 export const MapBasesViewType = 'map';
 export const SEARCH_DEBOUNCE_TIME = 300;
@@ -339,7 +339,7 @@ export class MapBasesView extends BasesView {
 
         const center = this.getCenter();
         const hasConfiguredCenter = center.lat !== 0 || center.lng !== 0;
-        const locationsChanged = haveLocationsChanged(points, this.lastPoints);
+        const locationsChanged = MapPoint.haveLocationsChanged(points, this.lastPoints);
         const configChanged = this.hasConfigMeaningfullyChanged();
 
         this.lastConfigState = { ...this.config.data };

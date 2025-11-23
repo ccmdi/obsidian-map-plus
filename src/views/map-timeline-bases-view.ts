@@ -5,7 +5,7 @@ import {
     ViewOption,
     setIcon,
 } from 'obsidian';
-import { MapPoint } from '../map-renderer';
+import { MapPoint } from '../types/MapPoint';
 import MapPlugin from '../main';
 import { MapBasesView } from './map-bases-view';
 

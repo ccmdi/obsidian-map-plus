@@ -9,32 +9,14 @@ import { MapView as MapViewType } from '@deck.gl/core';
 import { MapTagSettings } from './settings/map-tag-settings';
 import type MapPlugin from './main';
 import type { ThumbnailCacheManager } from './thumbnail-cache';
-import { LatLng } from './types/latlng';
+import { LatLng } from './types/LatLng';
+import { MapPoint } from './types/MapPoint';
 
 function easeCubic(t: number): number {
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
-type PropertyValue = string | number | boolean | string[] | null;
-
 export let currentViewState: MapViewState | null = null;
-
-interface MapProperty {
-    name: string;
-    value: PropertyValue;
-}
-
-export interface MapPoint {
-    location: LatLng.Verified;
-    title: string;
-    color?: string;
-    size?: number;
-    cover?: string;
-    file?: TFile;
-    tags?: string[];
-    properties?: MapProperty[];
-    polygon?: LatLng.Verified[];
-}
 
 interface TileIndex {
     index: {
