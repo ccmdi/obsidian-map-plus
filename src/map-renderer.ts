@@ -9,7 +9,7 @@ import { MapView as MapViewType } from '@deck.gl/core';
 import { MapTagSettings } from './settings/map-tag-settings';
 import type MapPlugin from './main';
 import type { ThumbnailCacheManager } from './thumbnail-cache';
-import { LatLng } from './latlng';
+import { LatLng } from './types/latlng';
 
 function easeCubic(t: number): number {
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;

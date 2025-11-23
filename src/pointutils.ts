@@ -1,5 +1,5 @@
 import { MapPoint } from "./map-renderer";
-import { LatLng } from "./latlng";
+import { LatLng } from "./types/latlng";
 
 export function haveLocationsChanged(points1: MapPoint[], points2: MapPoint[]): boolean {
     return !arePointsEqual(points1, points2);

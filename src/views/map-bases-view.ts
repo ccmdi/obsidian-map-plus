@@ -15,9 +15,11 @@ import { createMapRenderer, MapPoint, updateMapPoints } from '../map-renderer';
 import MapPlugin from '../main';
 import { haveLocationsChanged } from '../pointutils';
 import { currentViewState } from '../map-renderer';
-import { LatLng } from '../latlng';
+import { LatLng } from '../types/latlng';
+import { extractFromFrontmatter } from '../utils';
 
 export const MapBasesViewType = 'map';
+export const SEARCH_DEBOUNCE_TIME = 300;
 
 const DEFAULT_MAP_HEIGHT = 400;
 const DEFAULT_MAP_ZOOM = 4;
@@ -449,18 +451,13 @@ export class MapBasesView extends BasesView {
         // Fallback to global settings if coordinates property not set or failed
         if (this.plugin.settings.latKey && this.plugin.settings.lngKey) {
             try {
+                //TODO: use fm cache - location[0] and location[1] not accessible via entry.getValue?
                 const fileCache = this.app.metadataCache.getFileCache(entry.file);
                 if (fileCache?.frontmatter) {
-                    const latValue = this.extractFromFrontmatter(fileCache.frontmatter, this.plugin.settings.latKey);
-                    const lngValue = this.extractFromFrontmatter(fileCache.frontmatter, this.plugin.settings.lngKey);
+                    const latValue = extractFromFrontmatter(fileCache.frontmatter, this.plugin.settings.latKey);
+                    const lngValue = extractFromFrontmatter(fileCache.frontmatter, this.plugin.settings.lngKey);
 
-                    if (latValue !== undefined && lngValue !== undefined) {
-                        const lat = LatLng.parseCoordinate(latValue);
-                        const lng = LatLng.parseCoordinate(lngValue);
-                        if (lat !== null && lng !== null) {
-                            return LatLng.from(lat, lng);
-                        }
-                    }
+                    return LatLng.parse(`${latValue}, ${lngValue}`);
                 }
             } catch (error) {
                 console.error(`Error extracting coordinates from frontmatter for ${entry.file.name}:`, error);
@@ -470,55 +467,40 @@ export class MapBasesView extends BasesView {
         return null;
     }
 
-    private extractFromFrontmatter(frontmatter: Record<string, unknown>, key: string): unknown {
-        const arrayMatch = key.match(/^(.+)\[(\d+)\]$/);
-        if (arrayMatch) {
-            const arrayKey = arrayMatch[1];
-            const index = parseInt(arrayMatch[2]);
-            const arrayValue = frontmatter[arrayKey];
-            if (Array.isArray(arrayValue) && index >= 0 && index < arrayValue.length) {
-                return arrayValue[index];
-            }
-            return undefined;
-        }
-
-        // Regular property access
-        return frontmatter[key];
-    }
-
     private extractPolygonCoordinates(value: unknown): LatLng.Verified[] | null {
         try {
+            let items: unknown[] = [];
+
             // Handle ListValue (array from frontmatter)
             if (value instanceof ListValue) {
-                const coords: LatLng.Verified[] = [];
                 for (let i = 0; i < value.length(); i++) {
-                    const coord = LatLng.parse(value.get(i));
-                    if (coord) coords.push(coord);
+                    items.push(value.get(i));
                 }
-                return coords.length > 0 ? coords : null;
+            }
+            // Handle string value as JSON array
+            else if (value instanceof StringValue) {
+                const parsed = JSON.parse(value.toString().trim());
+                if (Array.isArray(parsed)) {
+                    items = parsed;
+                }
+            }
+            // Handle plain array
+            else if (Array.isArray(value)) {
+                items = value;
             }
 
-            // Handle string value as JSON array
-            if (value instanceof StringValue) {
-                try {
-                    const parsed = JSON.parse(value.toString().trim()) as unknown[];
-                    if (Array.isArray(parsed)) {
-                        const coords: LatLng.Verified[] = [];
-                        for (const item of parsed) {
-                            const coord = LatLng.parse(item);
-                            if (coord) coords.push(coord);
-                        }
-                        return coords.length > 0 ? coords : null;
-                    }
-                } catch {
-                    // Not JSON, ignore
-                }
+            // Parse each item as a coordinate
+            const coords: LatLng.Verified[] = [];
+            for (const item of items) {
+                const coord = LatLng.parse(item);
+                if (coord) coords.push(coord);
             }
+
+            return coords.length > 0 ? coords : null;
         } catch (error) {
             console.error('Error extracting polygon coordinates:', error);
+            return null;
         }
-
-        return null;
     }
 
     private createSearchBox(): void {
@@ -620,7 +602,7 @@ export class MapBasesView extends BasesView {
 
             searchTimeout = window.setTimeout(() => {
                 void performSearch(query);
-            }, 300);
+            }, SEARCH_DEBOUNCE_TIME);
         });
 
         // Close results when clicking outside

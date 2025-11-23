@@ -143,8 +143,13 @@ export namespace LatLng {
 	// Parse coordinate value from various sources (Obsidian-specific)
 	// Handles NumberValue, StringValue, and primitive types
 	export function parseCoordinate(value: unknown): number | null {
+		// Handle null/undefined
+		if (value === null || value === undefined) {
+			return null;
+		}
+
 		// Handle Obsidian's NumberValue/StringValue types
-		if (value && typeof value === 'object' && 'toString' in value) {
+		if (typeof value === 'object' && 'toString' in value) {
 			const strValue = (value as { toString: () => string }).toString();
 			const num = parseFloat(strValue);
 			return isNaN(num) ? null : num;
