@@ -1,18 +1,7 @@
 import { MapPoint } from "./map-renderer";
 
-
 export function haveLocationsChanged(points1: MapPoint[], points2: MapPoint[]): boolean {
-    // Check if count changed
-    if (points1.length !== points2.length) return true;
-
-    // Check if any location (lat/lng) changed
-    for (let i = 0; i < points1.length; i++) {
-        if (points1[i].lat !== points2[i].lat || points1[i].lng !== points2[i].lng) {
-            return true;
-        }
-    }
-
-    return false;
+    return !arePointsEqual(points1, points2);
 }
 
 export function arePointsEqual(points1: MapPoint[], points2: MapPoint[]): boolean {

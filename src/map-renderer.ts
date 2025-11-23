@@ -718,9 +718,7 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
         const x = e.clientX - rect.left;
         const y = e.clientY - rect.top;
         
-        // @ts-expect-error - accessing internal viewState
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment, @typescript-eslint/no-unsafe-member-access
-        const viewState = deck.viewState?.MapView;
+        const viewState = deck.props.viewState?.MapView;
         
         if (viewState) {
             const viewport = deck.getViewports()[0];
@@ -750,8 +748,7 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
 
             if (options.onSetDefaultZoom) {
                 menu.addItem((item) => {
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-member-access
-                    const currentZoom = (viewState as any).zoom as number;
+                    const currentZoom = viewState.zoom;
                     item
                         .setTitle('Set default zoom')
                         .setIcon('zoom-in')

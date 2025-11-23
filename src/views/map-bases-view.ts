@@ -9,11 +9,11 @@ import {
     ViewOption,
     requestUrl,
 } from 'obsidian';
-import { Deck, FlyToInterpolator } from '@deck.gl/core';
+import { Deck, FlyToInterpolator, MapViewState } from '@deck.gl/core';
 import { MapView as MapViewType } from '@deck.gl/core';
 import { createMapRenderer, MapPoint, updateMapPoints } from '../map-renderer';
 import MapPlugin from '../main';
-import { arePointsEqual, haveLocationsChanged } from '../pointutils';
+import { haveLocationsChanged } from '../pointutils';
 
 export const MapBasesViewType = 'map';
 
@@ -29,7 +29,7 @@ export class MapBasesView extends BasesView {
 
     protected deck: Deck<MapViewType[]> | null = null;
     
-    protected savedViewState: { latitude: number; longitude: number; zoom: number } | null = null;
+    protected savedViewState: MapViewState | null = null;
     protected lastPoints: MapPoint[] = [];
     protected mapUpdateTimeout?: number;
     protected lastConfigState: Record<string, unknown> = {};
@@ -75,11 +75,8 @@ export class MapBasesView extends BasesView {
     private destroyMap(): void {
         if (this.deck) {
             try {
-                // @ts-expect-error - accessing protected viewState
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                const viewState = this.deck.viewState?.MapView;
+                const viewState = this.deck.props.viewState?.MapView;
                 if (viewState) {
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                     this.savedViewState = viewState;
                 }
                 this.deck.finalize();
@@ -635,7 +632,6 @@ export class MapBasesView extends BasesView {
                         
                         resultItem.addEventListener('click', () => {
                             if (this.deck) {
-                                // Center map on selected location
                                 this.deck.setProps({
                                     initialViewState: {
                                         MapView: {
