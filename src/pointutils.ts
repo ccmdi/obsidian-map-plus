@@ -1,4 +1,5 @@
 import { MapPoint } from "./map-renderer";
+import { LatLng } from "./latlng";
 
 export function haveLocationsChanged(points1: MapPoint[], points2: MapPoint[]): boolean {
     return !arePointsEqual(points1, points2);
@@ -11,11 +12,10 @@ export function arePointsEqual(points1: MapPoint[], points2: MapPoint[]): boolea
         const p1 = points1[i];
         const p2 = points2[i];
 
-        if (p1.lat !== p2.lat || 
-            p1.lng !== p2.lng || 
-            p1.title !== p2.title || 
-            p1.color !== p2.color || 
-            p1.size !== p2.size || 
+        if (!LatLng.equals(p1.location, p2.location) ||
+            p1.title !== p2.title ||
+            p1.color !== p2.color ||
+            p1.size !== p2.size ||
             p1.cover !== p2.cover ||
             p1.file?.path !== p2.file?.path) {
             return false;

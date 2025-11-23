@@ -9,6 +9,7 @@ import { MapView as MapViewType } from '@deck.gl/core';
 import { MapTagSettings } from './settings/map-tag-settings';
 import type MapPlugin from './main';
 import type { ThumbnailCacheManager } from './thumbnail-cache';
+import { LatLng } from './latlng';
 
 function easeCubic(t: number): number {
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
@@ -24,8 +25,7 @@ interface MapProperty {
 }
 
 export interface MapPoint {
-    lat: number;
-    lng: number;
+    location: LatLng.Verified;
     title: string;
     color?: string;
     size?: number;
@@ -33,7 +33,7 @@ export interface MapPoint {
     file?: TFile;
     tags?: string[];
     properties?: MapProperty[];
-    polygon?: [number, number][];
+    polygon?: LatLng.Verified[];
 }
 
 interface TileIndex {
@@ -191,10 +191,10 @@ function calculateBounds(points: MapPoint[], containerEl: HTMLElement): { latitu
     let minLng = Infinity, maxLng = -Infinity;
 
     for (const p of points) {
-        if (p.lat < minLat) minLat = p.lat;
-        if (p.lat > maxLat) maxLat = p.lat;
-        if (p.lng < minLng) minLng = p.lng;
-        if (p.lng > maxLng) maxLng = p.lng;
+        if (p.location.lat < minLat) minLat = p.location.lat;
+        if (p.location.lat > maxLat) maxLat = p.location.lat;
+        if (p.location.lng < minLng) minLng = p.location.lng;
+        if (p.location.lng > maxLng) maxLng = p.location.lng;
     }
 
     const centerLat = (maxLat + minLat) / 2;
@@ -247,8 +247,8 @@ function createPolygonLayer(
 
     for (const point of points) {
         if (point.polygon && point.polygon.length > 0) {
-            // Convert lat,lng to lng,lat for deck.gl
-            const polygon: [number, number][] = point.polygon.map(([lat, lng]) => [lng, lat]);
+            // Convert LatLng.Verified to [lng, lat] for deck.gl
+            const polygon: [number, number][] = point.polygon.map(coord => LatLng.toArrayLngLat(coord));
 
             polygonData.push({
                 polygon,
@@ -355,7 +355,7 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
     const autoCenter = options.autoCenter !== false; // Default to true
 
     const deckData: DeckDataPoint[] = points.map(point => ({
-        position: [point.lng, point.lat] as [number, number],
+        position: LatLng.toArrayLngLat(point.location),
         color: parseColor(getPointColor(point, tagSettings, defaultColor)),
         radius: point.size || markerSize,
         point: point,
@@ -505,7 +505,7 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
     for (let i = 0; i < numPoints; i++) {
         const point = points[i];
         deckData[i] = {
-            position: [point.lng, point.lat] as [number, number],
+            position: LatLng.toArrayLngLat(point.location),
             color: parseColor(getPointColor(point, tagSettings, markerColor)),
             radius: point.size || markerSize,
             point: point,

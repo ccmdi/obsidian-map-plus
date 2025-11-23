@@ -15,6 +15,7 @@ import { createMapRenderer, MapPoint, updateMapPoints } from '../map-renderer';
 import MapPlugin from '../main';
 import { haveLocationsChanged } from '../pointutils';
 import { currentViewState } from '../map-renderer';
+import { LatLng } from '../latlng';
 
 export const MapBasesViewType = 'map';
 
@@ -109,8 +110,11 @@ export class MapBasesView extends BasesView {
         return (this.config.get('defaultZoom') as number) || DEFAULT_MAP_ZOOM;
     }
 
-    private getCenter(): [number, number] {
-        return this.parseLatLngOrZero(this.config.get('center'));
+    private getCenter(): LatLng.Verified {
+        const centerRaw = this.config.get('center');
+        if (!centerRaw) return LatLng.fromUnsafe(0, 0);
+        const parsed = this.parseLatLng(centerRaw);
+        return parsed ?? LatLng.fromUnsafe(0, 0);
     }
 
     private getMarkerType(): 'pins' | 'dots' {
@@ -152,9 +156,9 @@ export class MapBasesView extends BasesView {
             }
         }
         if (this.hasConfigPropertyChanged('defaultZoom')) {
-            const centerRaw = this.parseLatLng(this.config.get('center'));
+            const center = this.parseLatLng(this.config.get('center'));
             // Only meaningful if center is valid AND non-empty (non-zero)
-            if (centerRaw !== null && (centerRaw[0] !== 0 || centerRaw[1] !== 0)) {
+            if (center !== null && (center.lat !== 0 || center.lng !== 0)) {
                 return true;
             }
         }
@@ -253,18 +257,18 @@ export class MapBasesView extends BasesView {
         };
 
         const center = this.getCenter();
-        const hasConfiguredCenter = center[0] !== 0 || center[1] !== 0;
+        const hasConfiguredCenter = center.lat !== 0 || center.lng !== 0;
         let centerToUse: [number, number];
         let zoomToUse: number;
 
         if (hasConfiguredCenter) {
-            centerToUse = center;
+            centerToUse = LatLng.toArray(center);
             zoomToUse = this.getDefaultZoom();
         } else if (this.savedViewState) {
             centerToUse = [this.savedViewState.latitude, this.savedViewState.longitude];
             zoomToUse = this.savedViewState.zoom;
         } else {
-            centerToUse = center;
+            centerToUse = LatLng.toArray(center);
             zoomToUse = this.getDefaultZoom();
         }
 
@@ -332,7 +336,7 @@ export class MapBasesView extends BasesView {
         if (!this.deck) return;
 
         const center = this.getCenter();
-        const hasConfiguredCenter = center[0] !== 0 || center[1] !== 0;
+        const hasConfiguredCenter = center.lat !== 0 || center.lng !== 0;
         const locationsChanged = haveLocationsChanged(points, this.lastPoints);
         const configChanged = this.hasConfigMeaningfullyChanged();
 
@@ -341,7 +345,7 @@ export class MapBasesView extends BasesView {
 
         const shouldAutoCenter = this.plugin.settings.autoCenter && !hasConfiguredCenter && (autofit === true || (autofit === undefined && (locationsChanged || configChanged)));
         const shouldUseConfiguredCenter = hasConfiguredCenter && (autofit !== false); //TODO: slight hack
-        
+
         updateMapPoints(this.deck, points, {
             containerEl: this.mapEl,
             app: this.app,
@@ -349,7 +353,7 @@ export class MapBasesView extends BasesView {
             tagSettings: this.plugin.tagSettings,
             options: {
                 markerType: this.getMarkerType(),
-                center: shouldUseConfiguredCenter ? center : undefined,
+                center: shouldUseConfiguredCenter ? LatLng.toArray(center) : undefined,
                 zoom: shouldUseConfiguredCenter ? this.getDefaultZoom() : undefined,
                 autoCenter: shouldAutoCenter
             }
@@ -369,8 +373,7 @@ export class MapBasesView extends BasesView {
             if (!coordinates) continue;
 
             let point: MapPoint = {
-                lat: coordinates[0],
-                lng: coordinates[1],
+                location: coordinates,
                 title: entry.file.basename,
                 file: entry.file,
             };
@@ -418,7 +421,7 @@ export class MapBasesView extends BasesView {
                 const polygonVal = entry.getValue(polygonProp);
                 if (polygonVal) {
                     const polygonCoords = this.extractPolygonCoordinates(polygonVal);
-                    if (polygonCoords) {
+                    if (polygonCoords && polygonCoords.length > 0) {
                         point.polygon = polygonCoords;
                     }
                 }
@@ -432,7 +435,7 @@ export class MapBasesView extends BasesView {
         return points;
     }
 
-    protected extractCoordinates(entry: BasesEntry, coordinatesProp: BasesPropertyId | null): [number, number] | null {
+    protected extractCoordinates(entry: BasesEntry, coordinatesProp: BasesPropertyId | null): LatLng.Verified | null {
         if (coordinatesProp) {
             try {
                 const value = entry.getValue(coordinatesProp);
@@ -455,7 +458,7 @@ export class MapBasesView extends BasesView {
                         const lat = this.parseCoordinate(latValue);
                         const lng = this.parseCoordinate(lngValue);
                         if (lat !== null && lng !== null) {
-                            return [lat, lng];
+                            return LatLng.from(lat, lng);
                         }
                     }
                 }
@@ -502,13 +505,13 @@ export class MapBasesView extends BasesView {
         return null;
     }
 
-    private parseLatLng(value: unknown): [number, number] | null {
+    private parseLatLng(value: unknown): LatLng.Verified | null {
         // Handle ListValue from frontmatter: [40.7128, -74.0060]
         if (value instanceof ListValue && value.length() >= 2) {
             const lat = this.parseCoordinate(value.get(0));
             const lng = this.parseCoordinate(value.get(1));
             if (lat !== null && lng !== null) {
-                return [lat, lng];
+                return LatLng.from(lat, lng);
             }
         }
 
@@ -517,7 +520,7 @@ export class MapBasesView extends BasesView {
             const lat = this.parseCoordinate(value[0]);
             const lng = this.parseCoordinate(value[1]);
             if (lat !== null && lng !== null) {
-                return [lat, lng];
+                return LatLng.from(lat, lng);
             }
         }
 
@@ -526,22 +529,18 @@ export class MapBasesView extends BasesView {
             const str = value instanceof StringValue ? value.toString() : value;
             const parts = str.split(',').map(p => parseFloat(p.trim()));
             if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                return [parts[0], parts[1]];
+                return LatLng.from(parts[0], parts[1]);
             }
         }
 
         return null;
     }
 
-    private parseLatLngOrZero(value: unknown): [number, number] {
-        return this.parseLatLng(value) ?? [0, 0];
-    }
-
-    private extractPolygonCoordinates(value: unknown): [number, number][] | null {
+    private extractPolygonCoordinates(value: unknown): LatLng.Verified[] | null {
         try {
             // Handle ListValue (array from frontmatter)
             if (value instanceof ListValue) {
-                const coords: [number, number][] = [];
+                const coords: LatLng.Verified[] = [];
                 for (let i = 0; i < value.length(); i++) {
                     const coord = this.parseLatLng(value.get(i));
                     if (coord) coords.push(coord);
@@ -554,7 +553,7 @@ export class MapBasesView extends BasesView {
                 try {
                     const parsed = JSON.parse(value.toString().trim()) as unknown[];
                     if (Array.isArray(parsed)) {
-                        const coords: [number, number][] = [];
+                        const coords: LatLng.Verified[] = [];
                         for (const item of parsed) {
                             const coord = this.parseLatLng(item);
                             if (coord) coords.push(coord);
