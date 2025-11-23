@@ -306,7 +306,9 @@ export class MapBasesView extends BasesView {
 
         this.containerEl.removeClass('is-loading');
 
-        this.createSearchBox();
+        if (this.plugin.settings.enableSearchGeocoding) {
+            this.createSearchBox();
+        }
 
         setTimeout(() => {
             if (!tilesLoaded) {
