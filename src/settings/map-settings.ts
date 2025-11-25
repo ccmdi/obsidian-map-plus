@@ -13,6 +13,7 @@ export interface MapPluginSettings {
     thumbnailTargetSize: number;
     tagSettings: MapTagSettings;
     enableTimelineView: boolean;
+    enableSearchGeocoding: boolean;
 }
 
 export const DEFAULT_SETTINGS: MapPluginSettings = {
@@ -25,7 +26,8 @@ export const DEFAULT_SETTINGS: MapPluginSettings = {
     enableThumbnailCache: false,
     thumbnailTargetSize: 25,
     tagSettings: DEFAULT_MAP_TAG_SETTINGS,
-    enableTimelineView: false
+    enableTimelineView: false,
+    enableSearchGeocoding: false
 };
 
 export class MapSettingTab extends PluginSettingTab {
@@ -118,6 +120,16 @@ export class MapSettingTab extends PluginSettingTab {
                 .setDynamicTooltip()
                 .onChange(async (value) => {
                     this.plugin.settings.transitionDuration = value;
+                    await this.plugin.saveSettings();
+                }));
+        new Setting(containerEl)
+            .setName('Enable search geocoding')
+            .setDesc('Enable a search bar to go to locations via natural language or coordinate paste')
+            .addToggle(toggle => toggle
+                .setValue(this.plugin.settings.enableSearchGeocoding)
+                .onChange(async (value) => {
+                    this.plugin.settings.enableSearchGeocoding = value;
+                    this.plugin.refreshAllMapViews();
                     await this.plugin.saveSettings();
                 }));
 

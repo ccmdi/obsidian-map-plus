@@ -44,8 +44,7 @@ export class ThumbnailCacheManager {
 
             if (exists) {
                 const content = await this.app.vault.adapter.read(metadataPath);
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                this.cache = JSON.parse(content);
+                this.cache = JSON.parse(content) as ThumbnailCacheMetadata;
             }
 
             this.cacheLoaded = true;

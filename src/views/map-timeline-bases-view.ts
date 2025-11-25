@@ -5,7 +5,7 @@ import {
     ViewOption,
     setIcon,
 } from 'obsidian';
-import { MapPoint } from '../map-renderer';
+import { MapPoint } from '../types/MapPoint';
 import MapPlugin from '../main';
 import { MapBasesView } from './map-bases-view';
 
@@ -314,63 +314,6 @@ export class MapTimelineBasesView extends MapBasesView {
             this.sliderEl = null;
             this.playButton = null;
         }
-    }
-
-    private makeDraggable(element: HTMLElement): void {
-        let isDragging = false;
-        let offsetX = 0;
-        let offsetY = 0;
-
-        element.addClass('map-draggable');
-
-        const onMouseDown = (e: MouseEvent) => {
-            const target = e.target as HTMLElement;
-            if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'BUTTON') {
-                return;
-            }
-
-            isDragging = true;
-            const rect = element.getBoundingClientRect();
-
-            offsetX = e.clientX - rect.left;
-            offsetY = e.clientY - rect.top;
-
-            element.addClass('dragging');
-
-            e.preventDefault();
-        };
-
-        const onMouseMove = (e: MouseEvent) => {
-            if (!isDragging) return;
-
-            const containerRect = this.mapEl.getBoundingClientRect();
-            const elementRect = element.getBoundingClientRect();
-
-            let x = e.clientX - containerRect.left - offsetX;
-            let y = e.clientY - containerRect.top - offsetY;
-
-            // Constrain to container bounds
-            x = Math.max(0, Math.min(x, containerRect.width - elementRect.width));
-            y = Math.max(0, Math.min(y, containerRect.height - elementRect.height));
-
-            element.setCssProps({'left': `${x}px`});
-            element.setCssProps({'top': `${y}px`});
-            element.addClass('move');
-        };
-
-        const onMouseUp = () => {
-            isDragging = false;
-        };
-
-        element.addEventListener('mousedown', onMouseDown);
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
-
-        // Clean up on destroy
-        this.register(() => {
-            document.removeEventListener('mousemove', onMouseMove);
-            document.removeEventListener('mouseup', onMouseUp);
-        });
     }
 
     private togglePlayback(): void {

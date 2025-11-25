@@ -3,18 +3,23 @@ import {
     BasesPropertyId,
     BasesView,
     ListValue,
-    NumberValue,
     QueryController,
     StringValue,
     ViewOption,
+    requestUrl,
 } from 'obsidian';
-import { Deck } from '@deck.gl/core';
+import { Deck, FlyToInterpolator, MapViewState } from '@deck.gl/core';
 import { MapView as MapViewType } from '@deck.gl/core';
-import { createMapRenderer, MapPoint, updateMapPoints } from '../map-renderer';
+import { createMapRenderer, updateMapPoints } from '../map-renderer';
 import MapPlugin from '../main';
-import { arePointsEqual, haveLocationsChanged } from '../pointutils';
+import { currentViewState } from '../map-renderer';
+import { LatLng } from '../types/LatLng';
+import { extractFromFrontmatter } from '../utils';
+import { MapPoint } from '../types/MapPoint';
 
 export const MapBasesViewType = 'map';
+export const SEARCH_DEBOUNCE_TIME = 300;
+export const SEARCH_TRANSITION_DURATION = 1600;
 
 const DEFAULT_MAP_HEIGHT = 400;
 const DEFAULT_MAP_ZOOM = 4;
@@ -28,7 +33,7 @@ export class MapBasesView extends BasesView {
 
     protected deck: Deck<MapViewType[]> | null = null;
     
-    protected savedViewState: { latitude: number; longitude: number; zoom: number } | null = null;
+    protected savedViewState: MapViewState | null = null;
     protected lastPoints: MapPoint[] = [];
     protected mapUpdateTimeout?: number;
     protected lastConfigState: Record<string, unknown> = {};
@@ -74,11 +79,8 @@ export class MapBasesView extends BasesView {
     private destroyMap(): void {
         if (this.deck) {
             try {
-                // @ts-expect-error - accessing protected viewState
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                const viewState = this.deck.viewState?.MapView;
+                const viewState = currentViewState;
                 if (viewState) {
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
                     this.savedViewState = viewState;
                 }
                 this.deck.finalize();
@@ -110,8 +112,11 @@ export class MapBasesView extends BasesView {
         return (this.config.get('defaultZoom') as number) || DEFAULT_MAP_ZOOM;
     }
 
-    private getCenter(): [number, number] {
-        return this.parseLatLngOrZero(this.config.get('center'));
+    private getCenter(): LatLng.Verified {
+        const centerRaw = this.config.get('center');
+        if (!centerRaw) return LatLng.fromUnsafe(0, 0);
+        const parsed = LatLng.parse(centerRaw);
+        return parsed ?? LatLng.fromUnsafe(0, 0);
     }
 
     private getMarkerType(): 'pins' | 'dots' {
@@ -131,8 +136,7 @@ export class MapBasesView extends BasesView {
         if (!boundsStr || typeof boundsStr !== 'string') return undefined;
 
         try {
-            // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-            const parsed = JSON.parse(boundsStr);
+            const parsed = JSON.parse(boundsStr) as unknown[];
             if (Array.isArray(parsed) && parsed.length === 2 &&
                 Array.isArray(parsed[0]) && parsed[0].length === 2 &&
                 Array.isArray(parsed[1]) && parsed[1].length === 2) {
@@ -149,14 +153,14 @@ export class MapBasesView extends BasesView {
         if(this.hasConfigPropertyChanged('center')) {
             const centerRaw = this.config.get('center');
             // Meaningful if it's empty OR if it's valid
-            if (!centerRaw || this.parseLatLng(centerRaw) !== null) {
+            if (!centerRaw || LatLng.parse(centerRaw) !== null) {
                 return true;
             }
         }
         if (this.hasConfigPropertyChanged('defaultZoom')) {
-            const centerRaw = this.parseLatLng(this.config.get('center'));
+            const center = LatLng.parse(this.config.get('center'));
             // Only meaningful if center is valid AND non-empty (non-zero)
-            if (centerRaw !== null && (centerRaw[0] !== 0 || centerRaw[1] !== 0)) {
+            if (center !== null && (center.lat !== 0 || center.lng !== 0)) {
                 return true;
             }
         }
@@ -255,18 +259,18 @@ export class MapBasesView extends BasesView {
         };
 
         const center = this.getCenter();
-        const hasConfiguredCenter = center[0] !== 0 || center[1] !== 0;
+        const hasConfiguredCenter = center.lat !== 0 || center.lng !== 0;
         let centerToUse: [number, number];
         let zoomToUse: number;
 
         if (hasConfiguredCenter) {
-            centerToUse = center;
+            centerToUse = LatLng.toArray(center);
             zoomToUse = this.getDefaultZoom();
         } else if (this.savedViewState) {
             centerToUse = [this.savedViewState.latitude, this.savedViewState.longitude];
             zoomToUse = this.savedViewState.zoom;
         } else {
-            centerToUse = center;
+            centerToUse = LatLng.toArray(center);
             zoomToUse = this.getDefaultZoom();
         }
 
@@ -287,13 +291,24 @@ export class MapBasesView extends BasesView {
                 onTilesLoaded: () => {
                     tilesLoaded = true;
                     hideOverlay();
+                },
+                onSetMapCenter: (lat: number, lng: number) => {
+                    this.config.set('center', `${lat}, ${lng}`);
+                },
+                onSetDefaultZoom: (zoom: number) => {
+                    this.config.set('defaultZoom', zoom);
                 }
             }
         });
 
         this.lastPoints = points;
+        this.lastConfigState = { ...this.config.data };
 
         this.containerEl.removeClass('is-loading');
+
+        if (this.plugin.settings.enableSearchGeocoding) {
+            this.createSearchBox();
+        }
 
         setTimeout(() => {
             if (!tilesLoaded) {
@@ -318,11 +333,6 @@ export class MapBasesView extends BasesView {
 
         const points = this.extractPointsFromData();
 
-        if (arePointsEqual(points, this.lastPoints)) {
-            console.warn('onDataUpdated triggered but points are unchanged - skipping update');
-            return;
-        }
-
         this.updateRenderedPoints(points);
     }
 
@@ -330,15 +340,15 @@ export class MapBasesView extends BasesView {
         if (!this.deck) return;
 
         const center = this.getCenter();
-        const hasConfiguredCenter = center[0] !== 0 || center[1] !== 0;
-        const locationsChanged = haveLocationsChanged(points, this.lastPoints);
+        const hasConfiguredCenter = center.lat !== 0 || center.lng !== 0;
+        const locationsChanged = MapPoint.haveLocationsChanged(points, this.lastPoints);
         const configChanged = this.hasConfigMeaningfullyChanged();
 
         this.lastConfigState = { ...this.config.data };
-
-        const shouldAutoCenter = this.plugin.settings.autoCenter && (autofit === true || (autofit === undefined && (locationsChanged || configChanged)));
-
         this.lastPoints = points;
+
+        const shouldAutoCenter = this.plugin.settings.autoCenter && !hasConfiguredCenter && (autofit === true || (autofit === undefined && (locationsChanged || configChanged)));
+        const shouldUseConfiguredCenter = hasConfiguredCenter && (autofit !== false); //TODO: slight hack
 
         updateMapPoints(this.deck, points, {
             containerEl: this.mapEl,
@@ -347,8 +357,8 @@ export class MapBasesView extends BasesView {
             tagSettings: this.plugin.tagSettings,
             options: {
                 markerType: this.getMarkerType(),
-                center: hasConfiguredCenter ? center : undefined,
-                zoom: hasConfiguredCenter ? this.getDefaultZoom() : undefined,
+                center: shouldUseConfiguredCenter ? LatLng.toArray(center) : undefined,
+                zoom: shouldUseConfiguredCenter ? this.getDefaultZoom() : undefined,
                 autoCenter: shouldAutoCenter
             }
         });
@@ -367,17 +377,14 @@ export class MapBasesView extends BasesView {
             if (!coordinates) continue;
 
             let point: MapPoint = {
-                lat: coordinates[0],
-                lng: coordinates[1],
+                location: coordinates,
                 title: entry.file.basename,
                 file: entry.file,
             };
 
             const fileCache = this.app.metadataCache.getFileCache(entry.file);
             if (fileCache?.frontmatter?.tags) {
-                // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                const tags = fileCache.frontmatter.tags;
-                point.tags = Array.isArray(tags) ? tags : [tags];
+                point.tags = fileCache.frontmatter.tags as string[];
             }
 
             if (coverProp) {
@@ -418,7 +425,7 @@ export class MapBasesView extends BasesView {
                 const polygonVal = entry.getValue(polygonProp);
                 if (polygonVal) {
                     const polygonCoords = this.extractPolygonCoordinates(polygonVal);
-                    if (polygonCoords) {
+                    if (polygonCoords && polygonCoords.length > 0) {
                         point.polygon = polygonCoords;
                     }
                 }
@@ -432,11 +439,11 @@ export class MapBasesView extends BasesView {
         return points;
     }
 
-    protected extractCoordinates(entry: BasesEntry, coordinatesProp: BasesPropertyId | null): [number, number] | null {
+    protected extractCoordinates(entry: BasesEntry, coordinatesProp: BasesPropertyId | null): LatLng.Verified | null {
         if (coordinatesProp) {
             try {
                 const value = entry.getValue(coordinatesProp);
-                const coords = this.parseLatLng(value);
+                const coords = LatLng.parse(value);
                 if (coords) return coords;
             } catch (error) {
                 console.error(`Error extracting coordinates for ${entry.file.name}:`, error);
@@ -446,18 +453,13 @@ export class MapBasesView extends BasesView {
         // Fallback to global settings if coordinates property not set or failed
         if (this.plugin.settings.latKey && this.plugin.settings.lngKey) {
             try {
+                //TODO: use fm cache - location[0] and location[1] not accessible via entry.getValue?
                 const fileCache = this.app.metadataCache.getFileCache(entry.file);
                 if (fileCache?.frontmatter) {
-                    const latValue = this.extractFromFrontmatter(fileCache.frontmatter, this.plugin.settings.latKey);
-                    const lngValue = this.extractFromFrontmatter(fileCache.frontmatter, this.plugin.settings.lngKey);
+                    const latValue = extractFromFrontmatter(fileCache.frontmatter, this.plugin.settings.latKey);
+                    const lngValue = extractFromFrontmatter(fileCache.frontmatter, this.plugin.settings.lngKey);
 
-                    if (latValue !== undefined && lngValue !== undefined) {
-                        const lat = this.parseCoordinate(latValue);
-                        const lng = this.parseCoordinate(lngValue);
-                        if (lat !== null && lng !== null) {
-                            return [lat, lng];
-                        }
-                    }
+                    return LatLng.parse([latValue, lngValue]);
                 }
             } catch (error) {
                 console.error(`Error extracting coordinates from frontmatter for ${entry.file.name}:`, error);
@@ -467,110 +469,313 @@ export class MapBasesView extends BasesView {
         return null;
     }
 
-    private extractFromFrontmatter(frontmatter: Record<string, unknown>, key: string): unknown {
-        const arrayMatch = key.match(/^(.+)\[(\d+)\]$/);
-        if (arrayMatch) {
-            const arrayKey = arrayMatch[1];
-            const index = parseInt(arrayMatch[2]);
-            const arrayValue = frontmatter[arrayKey];
-            if (Array.isArray(arrayValue) && index >= 0 && index < arrayValue.length) {
-                return arrayValue[index];
-            }
-            return undefined;
-        }
-
-        // Regular property access
-        return frontmatter[key];
-    }
-
-    private parseCoordinate(value: unknown): number | null {
-        if (value instanceof NumberValue) {
-            const numData = Number(value.toString());
-            return isNaN(numData) ? null : numData;
-        }
-        if (value instanceof StringValue) {
-            const num = parseFloat(value.toString());
-            return isNaN(num) ? null : num;
-        }
-        if (typeof value === 'string') {
-            const num = parseFloat(value);
-            return isNaN(num) ? null : num;
-        }
-        if (typeof value === 'number') {
-            return isNaN(value) ? null : value;
-        }
-        return null;
-    }
-
-    private parseLatLng(value: unknown): [number, number] | null {
-        // Handle ListValue from frontmatter: [40.7128, -74.0060]
-        if (value instanceof ListValue && value.length() >= 2) {
-            const lat = this.parseCoordinate(value.get(0));
-            const lng = this.parseCoordinate(value.get(1));
-            if (lat !== null && lng !== null) {
-                return [lat, lng];
-            }
-        }
-
-        // Handle plain JavaScript array from JSON.parse: [40.7128, -74.0060]
-        if (Array.isArray(value) && value.length >= 2) {
-            const lat = this.parseCoordinate(value[0]);
-            const lng = this.parseCoordinate(value[1]);
-            if (lat !== null && lng !== null) {
-                return [lat, lng];
-            }
-        }
-
-        // Handle string: "40.7128, -74.0060" or StringValue wrapper
-        if (value instanceof StringValue || typeof value === 'string') {
-            const str = value instanceof StringValue ? value.toString() : value;
-            const parts = str.split(',').map(p => parseFloat(p.trim()));
-            if (parts.length === 2 && !isNaN(parts[0]) && !isNaN(parts[1])) {
-                return [parts[0], parts[1]];
-            }
-        }
-
-        return null;
-    }
-
-    private parseLatLngOrZero(value: unknown): [number, number] {
-        return this.parseLatLng(value) ?? [0, 0];
-    }
-
-    private extractPolygonCoordinates(value: unknown): [number, number][] | null {
+    private extractPolygonCoordinates(value: unknown): LatLng.Verified[] | null {
         try {
+            let items: unknown[] = [];
+
             // Handle ListValue (array from frontmatter)
             if (value instanceof ListValue) {
-                const coords: [number, number][] = [];
                 for (let i = 0; i < value.length(); i++) {
-                    const coord = this.parseLatLng(value.get(i));
-                    if (coord) coords.push(coord);
+                    items.push(value.get(i));
                 }
-                return coords.length > 0 ? coords : null;
+            }
+            // Handle string value as JSON array
+            else if (value instanceof StringValue) {
+                const parsed = JSON.parse(value.toString().trim()) as unknown[];
+                if (Array.isArray(parsed)) {
+                    items = parsed;
+                }
+            }
+            // Handle plain array
+            else if (Array.isArray(value)) {
+                items = value;
             }
 
-            // Handle string value as JSON array
-            if (value instanceof StringValue) {
-                try {
-                    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-                    const parsed = JSON.parse(value.toString().trim());
-                    if (Array.isArray(parsed)) {
-                        const coords: [number, number][] = [];
-                        for (const item of parsed) {
-                            const coord = this.parseLatLng(item);
-                            if (coord) coords.push(coord);
-                        }
-                        return coords.length > 0 ? coords : null;
-                    }
-                } catch {
-                    // Not JSON, ignore
-                }
+            // Parse each item as a coordinate
+            const coords: LatLng.Verified[] = [];
+            for (const item of items) {
+                const coord = LatLng.parse(item);
+                if (coord) coords.push(coord);
             }
+
+            return coords.length > 0 ? coords : null;
         } catch (error) {
             console.error('Error extracting polygon coordinates:', error);
+            return null;
+        }
+    }
+
+    private createSearchBox(): void {
+        interface PhotonFeature {
+            geometry: {
+                coordinates: [number, number];
+            };
+            properties: {
+                name?: string;
+                street?: string;
+                city?: string;
+                country?: string;
+            };
         }
 
-        return null;
+        interface PhotonResponse {
+            features: PhotonFeature[];
+        }
+
+        const searchContainer = this.mapEl.createDiv({ cls: 'bases-map-search-container' });
+        this.makeDraggable(searchContainer);
+
+        const searchInput = searchContainer.createEl('input', {
+            type: 'text',
+            cls: 'map-search-input',
+            placeholder: 'Search location...',
+        });
+
+        const resultsContainer = searchContainer.createDiv({ cls: 'map-search-results' });
+
+        let searchTimeout: number;
+        let currentResults: Array<{ lat: number; lng: number; name: string; display_name: string }> = [];
+        let selectedResultIndex = -1;
+
+        const performSearch = async (query: string) => {
+            try {
+                const response = await requestUrl(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}&limit=5`);
+                const data = response.json as PhotonResponse;
+
+                currentResults = data.features.map((feature: PhotonFeature) => ({
+                    lat: feature.geometry.coordinates[1],
+                    lng: feature.geometry.coordinates[0],
+                    name: feature.properties.name ?? feature.properties.street ?? '',
+                    display_name: [
+                        feature.properties.name,
+                        feature.properties.city,
+                        feature.properties.country
+                    ].filter(Boolean).join(', ')
+                }));
+
+                resultsContainer.empty();
+                selectedResultIndex = -1;
+
+                if (currentResults.length > 0) {
+                    currentResults.forEach((result, index) => {
+                        const resultItem = resultsContainer.createDiv({ cls: 'map-search-result-item' });
+                        resultItem.textContent = result.display_name;
+
+                        const selectResult = () => {
+                            if (this.deck) {
+                                this.deck.setProps({
+                                    initialViewState: {
+                                        MapView: {
+                                            latitude: result.lat,
+                                            longitude: result.lng,
+                                            zoom: 12,
+                                            transitionDuration: SEARCH_TRANSITION_DURATION,
+                                            transitionInterpolator: new FlyToInterpolator(),
+                                        }
+                                    }
+                                });
+                            }
+                            searchInput.value = result.name || result.display_name;
+                            resultsContainer.empty();
+                            resultsContainer.removeClass('visible');
+                            selectedResultIndex = -1;
+                        };
+
+                        resultItem.addEventListener('click', selectResult);
+                        resultItem.addEventListener('mouseenter', () => {
+                            updateSelectedResult(index);
+                        });
+                    });
+                    resultsContainer.addClass('visible');
+                } else {
+                    resultsContainer.removeClass('visible');
+                }
+            } catch (error) {
+                console.error('Search error:', error);
+                resultsContainer.empty();
+                resultsContainer.removeClass('visible');
+            }
+        };
+
+        const updateSelectedResult = (index: number) => {
+            selectedResultIndex = index;
+            const resultItems = resultsContainer.querySelectorAll('.map-search-result-item');
+            resultItems.forEach((item, i) => {
+                if (i === index) {
+                    item.addClass('selected');
+                } else {
+                    item.removeClass('selected');
+                }
+            });
+        };
+
+        const handleCoordinatePaste = (query: string): boolean => {
+            const parsed = LatLng.parse(query);
+            if (parsed && this.deck) {
+                this.deck.setProps({
+                    initialViewState: {
+                        MapView: {
+                            latitude: parsed.lat,
+                            longitude: parsed.lng,
+                            zoom: 12,
+                            transitionDuration: SEARCH_TRANSITION_DURATION,
+                            transitionInterpolator: new FlyToInterpolator(),
+                        }
+                    }
+                });
+                searchInput.value = LatLng.toString(parsed);
+                resultsContainer.empty();
+                resultsContainer.removeClass('visible');
+                selectedResultIndex = -1;
+                return true;
+            }
+            return false;
+        };
+
+        searchInput.addEventListener('paste', (e) => {
+            e.preventDefault();
+            const pastedText = e.clipboardData?.getData('text')?.trim() || '';
+
+            if (handleCoordinatePaste(pastedText)) {
+                return;
+            }
+
+            searchInput.value = pastedText;
+            searchInput.dispatchEvent(new Event('input'));
+        });
+
+        searchInput.addEventListener('keydown', (e) => {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                if (currentResults.length > 0) {
+                    const newIndex = selectedResultIndex < currentResults.length - 1 ? selectedResultIndex + 1 : selectedResultIndex;
+                    updateSelectedResult(newIndex);
+                }
+            } else if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                if (currentResults.length > 0 && selectedResultIndex > 0) {
+                    updateSelectedResult(selectedResultIndex - 1);
+                }
+            } else if (e.key === 'Enter') {
+                e.preventDefault();
+                const query = searchInput.value.trim();
+
+                if (handleCoordinatePaste(query)) {
+                    return;
+                }
+
+                // If a result is selected, navigate to it
+                if (selectedResultIndex >= 0 && selectedResultIndex < currentResults.length) {
+                    const result = currentResults[selectedResultIndex];
+                    if (this.deck) {
+                        this.deck.setProps({
+                            initialViewState: {
+                                MapView: {
+                                    latitude: result.lat,
+                                    longitude: result.lng,
+                                    zoom: 12,
+                                    transitionDuration: SEARCH_TRANSITION_DURATION,
+                                    transitionInterpolator: new FlyToInterpolator(),
+                                }
+                            }
+                        });
+                    }
+                    searchInput.value = result.name || result.display_name;
+                    resultsContainer.empty();
+                    resultsContainer.removeClass('visible');
+                    selectedResultIndex = -1;
+                }
+            } else if (e.key === 'Escape') {
+                resultsContainer.empty();
+                resultsContainer.removeClass('visible');
+                selectedResultIndex = -1;
+            }
+        });
+
+        searchInput.addEventListener('input', () => {
+            const query = searchInput.value.trim();
+
+            if (searchTimeout) {
+                window.clearTimeout(searchTimeout);
+            }
+
+            if (query.length < 3) {
+                resultsContainer.empty();
+                resultsContainer.removeClass('visible');
+                return;
+            }
+
+            // Don't perform geocoding search if it's a valid LatLng
+            if (LatLng.parse(query)) {
+                resultsContainer.empty();
+                resultsContainer.removeClass('visible');
+                return;
+            }
+
+            searchTimeout = window.setTimeout(() => {
+                void performSearch(query);
+            }, SEARCH_DEBOUNCE_TIME);
+        });
+
+        // Close results when clicking outside
+        document.addEventListener('click', (e) => {
+            if (!searchContainer.contains(e.target as Node)) {
+                resultsContainer.empty();
+                resultsContainer.removeClass('visible');
+                selectedResultIndex = -1;
+            }
+        });
+    }
+
+    protected makeDraggable(element: HTMLElement): void {
+        let isDragging = false;
+        let offsetX = 0;
+        let offsetY = 0;
+
+        element.addClass('map-draggable');
+
+        const onMouseDown = (e: MouseEvent) => {
+            const target = e.target as HTMLElement;
+            if (target.tagName === 'INPUT' || target.tagName === 'SELECT' || target.tagName === 'BUTTON') {
+                return;
+            }
+
+            isDragging = true;
+            const rect = element.getBoundingClientRect();
+
+            offsetX = e.clientX - rect.left;
+            offsetY = e.clientY - rect.top;
+
+            element.addClass('dragging');
+
+            e.preventDefault();
+        };
+
+        const onMouseMove = (e: MouseEvent) => {
+            if (!isDragging) return;
+
+            const containerRect = this.mapEl.getBoundingClientRect();
+            const elementRect = element.getBoundingClientRect();
+
+            let x = e.clientX - containerRect.left - offsetX;
+            let y = e.clientY - containerRect.top - offsetY;
+
+            // Constrain to container bounds
+            x = Math.max(0, Math.min(x, containerRect.width - elementRect.width));
+            y = Math.max(0, Math.min(y, containerRect.height - elementRect.height));
+
+            element.setCssProps({'left': `${x}px`});
+            element.setCssProps({'top': `${y}px`});
+            element.addClass('move');
+        };
+
+        const onMouseUp = () => {
+            isDragging = false;
+        };
+
+        element.addEventListener('mousedown', onMouseDown);
+        document.addEventListener('mousemove', onMouseMove);
+        document.addEventListener('mouseup', onMouseUp);
     }
 
     static getViewOptions(): ViewOption[] {

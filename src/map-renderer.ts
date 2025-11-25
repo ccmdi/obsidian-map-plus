@@ -1,4 +1,4 @@
-import { App, TFile, setIcon } from 'obsidian';
+import { App, TFile, setIcon, Menu } from 'obsidian';
 import { Deck, PickingInfo, MapViewState, FlyToInterpolator, Layer } from '@deck.gl/core';
 import { BitmapLayer, IconLayer, ScatterplotLayer, PolygonLayer } from '@deck.gl/layers';
 import { TileLayer } from '@deck.gl/geo-layers';
@@ -9,30 +9,14 @@ import { MapView as MapViewType } from '@deck.gl/core';
 import { MapTagSettings } from './settings/map-tag-settings';
 import type MapPlugin from './main';
 import type { ThumbnailCacheManager } from './thumbnail-cache';
+import { LatLng } from './types/LatLng';
+import { MapPoint } from './types/MapPoint';
 
 function easeCubic(t: number): number {
     return t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
 }
 
-type PropertyValue = string | number | boolean | string[] | null;
-
-interface MapProperty {
-    name: string;
-    value: PropertyValue;
-}
-
-export interface MapPoint {
-    lat: number;
-    lng: number;
-    title: string;
-    color?: string;
-    size?: number;
-    cover?: string;
-    file?: TFile;
-    tags?: string[];
-    properties?: MapProperty[];
-    polygon?: [number, number][];
-}
+export let currentViewState: MapViewState | null = null;
 
 interface TileIndex {
     index: {
@@ -67,6 +51,8 @@ export interface MapRendererOptions {
         autoCenter?: boolean;
         onMarkerClick?: (point: MapPoint, event: MjolnirEvent) => void;
         onTilesLoaded?: () => void;
+        onSetMapCenter?: (lat: number, lng: number) => void;
+        onSetDefaultZoom?: (zoom: number) => void;
     };
 }
 
@@ -162,13 +148,18 @@ function getIconSVG(iconName: string, strokeWidth: number, fill: boolean): strin
 function handlePointClick(info: PickingInfo<DeckDataPoint>, event: MjolnirEvent, options: MapRendererOptions['options'], app: App) {
     if (!info.object) return;
 
+    // Ignore right-clicks (button === 2)
+    const srcEvent = event?.srcEvent;
+    if (srcEvent && 'button' in srcEvent && srcEvent.button === 2) {
+        return;
+    }
+
     if (options.onMarkerClick) {
         options.onMarkerClick(info.object.point, event);
         return;
     }
 
     if (info.object.point.file) {
-        const srcEvent = event?.srcEvent;
         const newTab =
             (srcEvent && 'button' in srcEvent && srcEvent.button === 1) ||
             srcEvent?.ctrlKey ||
@@ -182,10 +173,10 @@ function calculateBounds(points: MapPoint[], containerEl: HTMLElement): { latitu
     let minLng = Infinity, maxLng = -Infinity;
 
     for (const p of points) {
-        if (p.lat < minLat) minLat = p.lat;
-        if (p.lat > maxLat) maxLat = p.lat;
-        if (p.lng < minLng) minLng = p.lng;
-        if (p.lng > maxLng) maxLng = p.lng;
+        if (p.location.lat < minLat) minLat = p.location.lat;
+        if (p.location.lat > maxLat) maxLat = p.location.lat;
+        if (p.location.lng < minLng) minLng = p.location.lng;
+        if (p.location.lng > maxLng) maxLng = p.location.lng;
     }
 
     const centerLat = (maxLat + minLat) / 2;
@@ -238,8 +229,8 @@ function createPolygonLayer(
 
     for (const point of points) {
         if (point.polygon && point.polygon.length > 0) {
-            // Convert lat,lng to lng,lat for deck.gl
-            const polygon: [number, number][] = point.polygon.map(([lat, lng]) => [lng, lat]);
+            // Convert LatLng.Verified to [lng, lat] for deck.gl
+            const polygon: [number, number][] = point.polygon.map(coord => LatLng.toArrayLngLat(coord));
 
             polygonData.push({
                 polygon,
@@ -346,7 +337,7 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
     const autoCenter = options.autoCenter !== false; // Default to true
 
     const deckData: DeckDataPoint[] = points.map(point => ({
-        position: [point.lng, point.lat] as [number, number],
+        position: LatLng.toArrayLngLat(point.location),
         color: parseColor(getPointColor(point, tagSettings, defaultColor)),
         radius: point.size || markerSize,
         point: point,
@@ -371,7 +362,7 @@ export function updateMapPoints(deck: Deck<MapViewType[]>, points: MapPoint[], c
 
     const hasConfiguredCenter = options.center && (options.center[0] !== 0 || options.center[1] !== 0);
 
-    if (autoCenter && hasConfiguredCenter && options.zoom) {
+    if (hasConfiguredCenter && options.zoom) {
         if (!options.center) return;
         shouldTransition = true;
         targetViewState = {
@@ -458,10 +449,9 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
                 _offset: number;
                 tile: Tile2DHeader<HTMLImageElement>;
             }) => {
-                // eslint-disable-next-line @typescript-eslint/no-deprecated
-                const bbox = props.tile.bbox;
-                if (!('west' in bbox)) return null;
-                const { west, south, east, north } = bbox;
+                const boundingBox = props.tile.boundingBox;
+                if (!boundingBox || boundingBox.length !== 2) return null;
+                const [[west, south], [east, north]] = boundingBox;
                 return new BitmapLayer({
                     ...props,
                     data: undefined,
@@ -490,13 +480,12 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
     const tooltip = containerEl.createEl('div', { cls: 'map-tooltip' });
 
     const numPoints = points.length;
-    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-    const deckData: DeckDataPoint[] = new Array(numPoints);
+    const deckData: DeckDataPoint[] = new Array<DeckDataPoint>(numPoints);
 
     for (let i = 0; i < numPoints; i++) {
         const point = points[i];
         deckData[i] = {
-            position: [point.lng, point.lat] as [number, number],
+            position: LatLng.toArrayLngLat(point.location),
             color: parseColor(getPointColor(point, tagSettings, markerColor)),
             radius: point.size || markerSize,
             point: point,
@@ -701,6 +690,69 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
 
             return layers;
         })(),
+        onViewStateChange: ({ viewState: newViewState }) => {
+            currentViewState = newViewState;
+        }
+    });
+
+    mapCanvas.addEventListener('contextmenu', (e: MouseEvent) => {
+        e.preventDefault();
+        e.stopPropagation();
+
+        const rect = mapCanvas.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        const viewState = currentViewState;
+
+        if (viewState) {
+            const viewport = deck.getViewports()[0];
+            const [lng, lat] = viewport?.unproject([x, y]) || [0, 0];
+
+            const menu = new Menu();
+            
+            menu.addItem((item) => {
+                item
+                    .setTitle('Copy coordinates')
+                    .setIcon('copy')
+                    .onClick(async () => {
+                        await navigator.clipboard.writeText(`${lat.toFixed(6)}, ${lng.toFixed(6)}`);
+                    });
+            });
+
+            if (options.onSetMapCenter) {
+                menu.addItem((item) => {
+                    item
+                        .setTitle('Set as map center')
+                        .setIcon('map-pin')
+                        .onClick(() => {
+                            options.onSetMapCenter?.(lat, lng);
+                        });
+                });
+            }
+
+            if (options.onSetDefaultZoom) {
+                menu.addItem((item) => {
+                    const currentZoom = viewState.zoom;
+                    item
+                        .setTitle('Set default zoom')
+                        .setIcon('zoom-in')
+                        .onClick(() => {
+                            options.onSetDefaultZoom?.(currentZoom);
+                        });
+                });
+            }
+
+            menu.addItem((item) => {
+                item
+                    .setTitle('Open in web')
+                    .setIcon('globe')
+                    .onClick(() => {
+                        window.open(`https://www.google.com/maps?q=${lat.toFixed(6)},${lng.toFixed(6)}`, '_blank');
+                    });
+            });
+
+            menu.showAtMouseEvent(e);
+        }
     });
 
     return deck;
