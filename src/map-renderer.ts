@@ -449,11 +449,9 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
                 _offset: number;
                 tile: Tile2DHeader<HTMLImageElement>;
             }) => {
-                //TODO: replace with boundingBox
-                // eslint-disable-next-line @typescript-eslint/no-deprecated
-                const bbox = props.tile.bbox;
-                if (!('west' in bbox)) return null;
-                const { west, south, east, north } = bbox;
+                const boundingBox = props.tile.boundingBox;
+                if (!boundingBox || boundingBox.length !== 2) return null;
+                const [[west, south], [east, north]] = boundingBox;
                 return new BitmapLayer({
                     ...props,
                     data: undefined,
