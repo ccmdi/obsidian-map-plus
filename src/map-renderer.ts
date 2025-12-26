@@ -528,6 +528,10 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
 
     const updateTooltip = async (point: MapPoint, x: number, y: number) => {
         const thisUpdateId = ++tooltipUpdateId;
+
+        // Hide tooltip before clearing to prevent empty tooltip flash
+        tooltip.removeClass('visible');
+
         tooltip.textContent = '';
         const renderPromises: Promise<void>[] = [];
 
