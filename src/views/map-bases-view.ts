@@ -253,7 +253,7 @@ export class MapBasesView extends BasesView {
             if (overlayHidden) return;
             overlayHidden = true;
             loadingOverlay.addClass('fade-out');
-            setTimeout(() => {
+            activeWindow.setTimeout(() => {
                 loadingOverlay.remove();
             }, 300);
         };
@@ -310,7 +310,7 @@ export class MapBasesView extends BasesView {
             this.createSearchBox();
         }
 
-        setTimeout(() => {
+        activeWindow.setTimeout(() => {
             if (!tilesLoaded) {
                 hideOverlay();
             }
@@ -718,7 +718,7 @@ export class MapBasesView extends BasesView {
         });
 
         // Close results when clicking outside
-        document.addEventListener('click', (e) => {
+        activeDocument.addEventListener('click', (e) => {
             if (!searchContainer.contains(e.target as Node)) {
                 resultsContainer.empty();
                 resultsContainer.removeClass('visible');
@@ -764,8 +764,8 @@ export class MapBasesView extends BasesView {
             x = Math.max(0, Math.min(x, containerRect.width - elementRect.width));
             y = Math.max(0, Math.min(y, containerRect.height - elementRect.height));
 
-            element.setCssProps({'left': `${x}px`});
-            element.setCssProps({'top': `${y}px`});
+            element.style.left = `${x}px`;
+            element.style.top = `${y}px`;
             element.addClass('move');
         };
 
@@ -774,8 +774,8 @@ export class MapBasesView extends BasesView {
         };
 
         element.addEventListener('mousedown', onMouseDown);
-        document.addEventListener('mousemove', onMouseMove);
-        document.addEventListener('mouseup', onMouseUp);
+        activeDocument.addEventListener('mousemove', onMouseMove);
+        activeDocument.addEventListener('mouseup', onMouseUp);
     }
 
     static getViewOptions(): ViewOption[] {
@@ -828,21 +828,21 @@ export class MapBasesView extends BasesView {
                         displayName: 'Coordinates property',
                         type: 'property',
                         key: 'coordinates',
-                        filter: (prop) => !prop.startsWith('file.'),
+                        filter: (prop: BasesPropertyId) => !prop.startsWith('file.'),
                         placeholder: 'Property',
                     },
                     {
                         displayName: 'Cover image property',
                         type: 'property',
                         key: 'coverImage',
-                        filter: (prop) => !prop.startsWith('file.'),
+                        filter: (prop: BasesPropertyId) => !prop.startsWith('file.'),
                         placeholder: 'Property',
                     },
                     {
                         displayName: 'Polygon points property',
                         type: 'property',
                         key: 'polygonPoints',
-                        filter: (prop) => !prop.startsWith('file.'),
+                        filter: (prop: BasesPropertyId) => !prop.startsWith('file.'),
                         placeholder: 'Property',
                     },
                 ],

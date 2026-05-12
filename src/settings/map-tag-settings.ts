@@ -194,7 +194,7 @@ class TagSuggestModal extends SuggestModal<string> {
     }
 
     renderSuggestion(tag: string, el: HTMLElement): void {
-        el.createEl('div', { text: `#${tag}` });
+        el.createDiv({ text: `#${tag}` });
     }
 
     onChooseSuggestion(tag: string): void {
@@ -227,7 +227,7 @@ export class AddTagModal extends Modal {
 
         const iconContainer = colorIconContainer.createDiv({ cls: 'icon-container' });
 
-        const iconPreview = iconContainer.createEl('div', { cls: 'icon-preview' });
+        const iconPreview = iconContainer.createDiv({ cls: 'icon-preview' });
 
         const iconBtn = iconContainer.createEl('button', { text: 'Choose icon', cls: 'icon-btn' });
 

@@ -51,13 +51,12 @@ export class MapSettingTab extends PluginSettingTab {
             .setName('Latitude key')
             .setDesc('Frontmatter key for latitude (default for all bases)')
             .addText(text => text
-                // eslint-disable-next-line obsidianmd/ui/sentence-case
                 .setPlaceholder('lat')
                 .setValue(this.plugin.settings.latKey)
                 .onChange(async (value) => {
                     this.plugin.settings.latKey = value;
                     await this.plugin.saveSettings();
-                    setTimeout(() => {
+                    activeWindow.setTimeout(() => {
                         this.plugin.refreshAllMapViews();
                     }, 1000);
                 }));
@@ -66,13 +65,12 @@ export class MapSettingTab extends PluginSettingTab {
             .setName('Longitude key')
             .setDesc('Frontmatter key for longitude (default for all bases)')
             .addText(text => text
-                // eslint-disable-next-line obsidianmd/ui/sentence-case
                 .setPlaceholder('lng')
                 .setValue(this.plugin.settings.lngKey)
                 .onChange(async (value) => {
                     this.plugin.settings.lngKey = value;
                     await this.plugin.saveSettings();
-                    setTimeout(() => {
+                    activeWindow.setTimeout(() => {
                         this.plugin.refreshAllMapViews();
                     }, 1000);
                 }));
@@ -86,7 +84,7 @@ export class MapSettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.strokeWidth = value;
                     await this.plugin.saveSettings();
-                    setTimeout(() => {
+                    activeWindow.setTimeout(() => {
                         this.plugin.refreshAllMapViews();
                     }, 250);
                 }));
@@ -148,7 +146,7 @@ export class MapSettingTab extends PluginSettingTab {
 
                     if (value) {
                         await this.plugin.thumbnailCache.loadCache();
-                        setTimeout(() => {
+                        activeWindow.setTimeout(() => {
                             void this.plugin.thumbnailCache.generatePendingThumbnails();
                         }, 500);
                     }
@@ -159,7 +157,6 @@ export class MapSettingTab extends PluginSettingTab {
         if (this.plugin.settings.enableThumbnailCache) {
             new Setting(containerEl)
                 .setName('Thumbnail target size')
-                // eslint-disable-next-line obsidianmd/ui/sentence-case
                 .setDesc('Target file size for cached thumbnails (in KB)')
                 .addSlider(slider => slider
                     .setLimits(10, 50, 5)
@@ -194,7 +191,7 @@ export class MapSettingTab extends PluginSettingTab {
                 const refreshInterval = window.setInterval(() => {
                     updateStatus();
                     if (this.plugin.thumbnailCache.getCacheStats().pending === 0 && !this.plugin.thumbnailCache.isGenerating()) {
-                        clearInterval(refreshInterval);
+                        activeWindow.clearInterval(refreshInterval);
                         this.display();
                     }
                 }, 500);
@@ -211,13 +208,13 @@ export class MapSettingTab extends PluginSettingTab {
                         
                         // force refresh markers for cover context
                         this.plugin.refreshAllMapViews();
-                        await new Promise(resolve => setTimeout(resolve, 1000));
+                        await new Promise(resolve => activeWindow.setTimeout(resolve, 1000));
 
                         await this.plugin.thumbnailCache.rebuildCache((current, total) => {
                             button.setButtonText(`Rebuilding ${current}/${total}...`);
                         });
 
-                        clearInterval(progressInterval);
+                        activeWindow.clearInterval(progressInterval);
                         button.setButtonText('Rebuild cache');
                         button.setDisabled(false);
                         this.display();

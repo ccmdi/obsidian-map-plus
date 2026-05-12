@@ -58,11 +58,11 @@ export interface MapRendererOptions {
 
 
 function parseColor(color: string): [number, number, number] {
-    const tempEl = document.body.createDiv();
+    const tempEl = activeDocument.body.createDiv();
     tempEl.style.color = color;
-    document.body.appendChild(tempEl);
+    activeDocument.body.appendChild(tempEl);
     const computedColor = getComputedStyle(tempEl).color;
-    document.body.removeChild(tempEl);
+    activeDocument.body.removeChild(tempEl);
 
     const rgbMatch = computedColor.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)/);
     if (rgbMatch) {
@@ -119,12 +119,12 @@ function getIconSVG(iconName: string, strokeWidth: number, fill: boolean): strin
     }
 
     try {
-        const tempDiv = document.createElement('div');
+        const tempDiv = createDiv();
         setIcon(tempDiv, iconName);
         const svg = tempDiv.querySelector('svg');
         if (svg) {
             const clonedSvg = svg.cloneNode(true);
-            if (clonedSvg instanceof SVGElement) {
+            if (clonedSvg.instanceOf(SVGElement)) {
                 clonedSvg.setAttribute('stroke-width', String(strokeWidth));
                 if (fill) {
                     clonedSvg.querySelectorAll('path, circle, rect, polygon, ellipse, line, polyline').forEach((el) => {
@@ -477,7 +477,7 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
         });
     }
 
-    const tooltip = containerEl.createEl('div', { cls: 'map-tooltip' });
+    const tooltip = containerEl.createDiv({ cls: 'map-tooltip' });
 
     const numPoints = points.length;
     const deckData: DeckDataPoint[] = new Array<DeckDataPoint>(numPoints);
@@ -590,22 +590,22 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
             }
         }
 
-        const titleEl = tooltip.createEl('div', { cls: 'map-tooltip-title' });
+        const titleEl = tooltip.createDiv({ cls: 'map-tooltip-title' });
         titleEl.textContent = point.title;
 
         // show properties
         if (point.properties && point.properties.length > 0) {
-            const propsContainer = tooltip.createEl('div', { cls: 'map-tooltip-property-container' });
+            const propsContainer = tooltip.createDiv({ cls: 'map-tooltip-property-container' });
 
             point.properties.forEach(prop => {
                 if (prop.name.toLowerCase() === 'tags') return;
 
-                const propEl = propsContainer.createEl('div', { cls: 'map-tooltip-property' });
+                const propEl = propsContainer.createDiv({ cls: 'map-tooltip-property' });
 
-                const labelEl = propEl.createEl('span', { cls: 'map-tooltip-property-label' });
+                const labelEl = propEl.createSpan({ cls: 'map-tooltip-property-label' });
                 labelEl.textContent = prop.name + ':';
 
-                const valueEl = propEl.createEl('span', { cls: 'map-tooltip-property-value' });
+                const valueEl = propEl.createSpan({ cls: 'map-tooltip-property-value' });
 
                 // render value
                 if (typeof prop.value === 'string' || typeof prop.value === 'number') {
@@ -613,7 +613,6 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
                 } else if (Array.isArray(prop.value)) {
                     valueEl.textContent = prop.value.join(', ');
                 } else if (prop.value === null) {
-                    // eslint-disable-next-line obsidianmd/ui/sentence-case
                     valueEl.textContent = 'null';
                 } else if (typeof prop.value === 'boolean') {
                     valueEl.textContent = String(prop.value);
@@ -625,7 +624,7 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
 
         // show tags
         if (point.tags && point.tags.length > 0) {
-            const tagsEl = tooltip.createEl('div', { cls: 'map-tooltip-tags' });
+            const tagsEl = tooltip.createDiv({ cls: 'map-tooltip-tags' });
             point.tags.forEach((tag) => {
                 const tagEl = tagsEl.createEl('a', { cls: 'tag' });
                 tagEl.textContent = `#${tag}`;
@@ -660,7 +659,7 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
         onAfterRender: () => {
             if (options.onTilesLoaded && !tilesLoadedCalled) {
                 tilesLoadedCalled = true;
-                setTimeout(() => {
+                activeWindow.setTimeout(() => {
                     options.onTilesLoaded?.();
                 }, 200);
             }

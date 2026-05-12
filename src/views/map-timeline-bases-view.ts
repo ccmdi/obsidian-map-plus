@@ -295,11 +295,9 @@ export class MapTimelineBasesView extends MapBasesView {
             dateInputEl.placeholder = 'YYYY';
         } else if (granularity === 'monthly') {
             dateInputEl.value = `${year}-${month}`;
-            //eslint-disable-next-line obsidianmd/ui/sentence-case
             dateInputEl.placeholder = 'YYYY-MM';
         } else {
             dateInputEl.value = `${year}-${month}-${day}`;
-            //eslint-disable-next-line obsidianmd/ui/sentence-case
             dateInputEl.placeholder = 'YYYY-MM-DD';
         }
     }
@@ -569,21 +567,21 @@ export class MapTimelineBasesView extends MapBasesView {
                         displayName: 'Start date property',
                         type: 'property',
                         key: 'dateProperty',
-                        filter: (prop) => !prop.startsWith('file.'),
+                        filter: (prop: BasesPropertyId) => !prop.startsWith('file.'),
                         placeholder: 'Property',
                     },
                     {
                         displayName: 'End date property',
                         type: 'property',
                         key: 'endDateProperty',
-                        filter: (prop) => !prop.startsWith('file.'),
+                        filter: (prop: BasesPropertyId) => !prop.startsWith('file.'),
                         placeholder: 'None',
                     },
                     {
                         displayName: 'Group by property',
                         type: 'property',
                         key: 'uniquenessProperty',
-                        filter: (prop) => !prop.startsWith('file.'),
+                        filter: (prop: BasesPropertyId) => !prop.startsWith('file.'),
                         placeholder: 'None',
                     },
                     {

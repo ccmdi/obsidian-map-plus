@@ -1,4 +1,4 @@
-// eslint-disable-next-line @typescript-eslint/no-namespace
+// eslint-disable-next-line @typescript-eslint/no-namespace -- groups related LatLng type utilities and functions
 export namespace LatLng {
 	// Unverified input - accepts various formats
 	export type Like =

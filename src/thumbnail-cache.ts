@@ -128,7 +128,7 @@ export class ThumbnailCacheManager {
             const blob = new Blob([arrayBuffer]);
             const bitmap = await createImageBitmap(blob);
 
-            const canvas = document.createElement('canvas');
+            const canvas = createEl('canvas');
             const ctx = canvas.getContext('2d');
             if (!ctx) return null;
 
