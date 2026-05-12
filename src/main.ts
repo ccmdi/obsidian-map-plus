@@ -21,7 +21,7 @@ export default class MapPlugin extends Plugin {
         if (this.settings.enableThumbnailCache) {
             await this.thumbnailCache.loadCache();
 
-            activeWindow.setTimeout(() => {
+            window.setTimeout(() => {
                 void this.thumbnailCache.generatePendingThumbnails();
             }, 2000);
         }

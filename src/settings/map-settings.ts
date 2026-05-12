@@ -56,7 +56,7 @@ export class MapSettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.latKey = value;
                     await this.plugin.saveSettings();
-                    activeWindow.setTimeout(() => {
+                    window.setTimeout(() => {
                         this.plugin.refreshAllMapViews();
                     }, 1000);
                 }));
@@ -70,7 +70,7 @@ export class MapSettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.lngKey = value;
                     await this.plugin.saveSettings();
-                    activeWindow.setTimeout(() => {
+                    window.setTimeout(() => {
                         this.plugin.refreshAllMapViews();
                     }, 1000);
                 }));
@@ -84,7 +84,7 @@ export class MapSettingTab extends PluginSettingTab {
                 .onChange(async (value) => {
                     this.plugin.settings.strokeWidth = value;
                     await this.plugin.saveSettings();
-                    activeWindow.setTimeout(() => {
+                    window.setTimeout(() => {
                         this.plugin.refreshAllMapViews();
                     }, 250);
                 }));
@@ -146,7 +146,7 @@ export class MapSettingTab extends PluginSettingTab {
 
                     if (value) {
                         await this.plugin.thumbnailCache.loadCache();
-                        activeWindow.setTimeout(() => {
+                        window.setTimeout(() => {
                             void this.plugin.thumbnailCache.generatePendingThumbnails();
                         }, 500);
                     }
@@ -191,7 +191,7 @@ export class MapSettingTab extends PluginSettingTab {
                 const refreshInterval = window.setInterval(() => {
                     updateStatus();
                     if (this.plugin.thumbnailCache.getCacheStats().pending === 0 && !this.plugin.thumbnailCache.isGenerating()) {
-                        activeWindow.clearInterval(refreshInterval);
+                        window.clearInterval(refreshInterval);
                         this.display();
                     }
                 }, 500);
@@ -208,13 +208,13 @@ export class MapSettingTab extends PluginSettingTab {
                         
                         // force refresh markers for cover context
                         this.plugin.refreshAllMapViews();
-                        await new Promise(resolve => activeWindow.setTimeout(resolve, 1000));
+                        await new Promise(resolve => window.setTimeout(resolve, 1000));
 
                         await this.plugin.thumbnailCache.rebuildCache((current, total) => {
                             button.setButtonText(`Rebuilding ${current}/${total}...`);
                         });
 
-                        activeWindow.clearInterval(progressInterval);
+                        window.clearInterval(progressInterval);
                         button.setButtonText('Rebuild cache');
                         button.setDisabled(false);
                         this.display();

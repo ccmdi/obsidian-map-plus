@@ -659,7 +659,7 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
         onAfterRender: () => {
             if (options.onTilesLoaded && !tilesLoadedCalled) {
                 tilesLoadedCalled = true;
-                activeWindow.setTimeout(() => {
+                window.setTimeout(() => {
                     options.onTilesLoaded?.();
                 }, 200);
             }

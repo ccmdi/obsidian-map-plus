@@ -41,6 +41,7 @@ export class MapBasesView extends BasesView {
     constructor(controller: QueryController, scrollEl: HTMLElement, plugin: MapPlugin) {
         super(controller);
         this.scrollEl = scrollEl;
+        scrollEl.closest('.bases-view')?.addClass('bases-view-map');
         this.containerEl = scrollEl.createDiv({ cls: 'bases-map-container is-loading' });
         this.mapEl = this.containerEl.createDiv('bases-map');
         this.plugin = plugin;
@@ -253,7 +254,7 @@ export class MapBasesView extends BasesView {
             if (overlayHidden) return;
             overlayHidden = true;
             loadingOverlay.addClass('fade-out');
-            activeWindow.setTimeout(() => {
+            window.setTimeout(() => {
                 loadingOverlay.remove();
             }, 300);
         };
@@ -310,7 +311,7 @@ export class MapBasesView extends BasesView {
             this.createSearchBox();
         }
 
-        activeWindow.setTimeout(() => {
+        window.setTimeout(() => {
             if (!tilesLoaded) {
                 hideOverlay();
             }

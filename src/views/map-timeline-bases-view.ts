@@ -176,9 +176,11 @@ export class MapTimelineBasesView extends MapBasesView {
             if (this.controlsExpanded) {
                 playbackContainer.addClass('expanded');
                 toggleButton.addClass('expanded');
+                sliderContainer.addClass('has-expanded-controls');
             } else {
                 playbackContainer.removeClass('expanded');
                 toggleButton.removeClass('expanded');
+                sliderContainer.removeClass('has-expanded-controls');
             }
         });
 
