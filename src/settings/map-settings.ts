@@ -14,6 +14,7 @@ export interface MapPluginSettings {
     tagSettings: MapTagSettings;
     enableTimelineView: boolean;
     enableSearchGeocoding: boolean;
+    scrollZoomSpeed: number;
 }
 
 export const DEFAULT_SETTINGS: MapPluginSettings = {
@@ -27,7 +28,8 @@ export const DEFAULT_SETTINGS: MapPluginSettings = {
     thumbnailTargetSize: 25,
     tagSettings: DEFAULT_MAP_TAG_SETTINGS,
     enableTimelineView: false,
-    enableSearchGeocoding: false
+    enableSearchGeocoding: false,
+    scrollZoomSpeed: 0.04
 };
 
 export class MapSettingTab extends PluginSettingTab {
@@ -87,6 +89,18 @@ export class MapSettingTab extends PluginSettingTab {
                     window.setTimeout(() => {
                         this.plugin.refreshAllMapViews();
                     }, 250);
+                }));
+
+        new Setting(containerEl)
+            .setName('Scroll zoom speed')
+            .addSlider(slider => slider
+                .setLimits(0.01, 0.1, 0.01)
+                .setValue(this.plugin.settings.scrollZoomSpeed)
+                .setDynamicTooltip()
+                .onChange(async (value) => {
+                    this.plugin.settings.scrollZoomSpeed = value;
+                    await this.plugin.saveSettings();
+                    this.plugin.refreshAllMapViews();
                 }));
 
         new Setting(containerEl)

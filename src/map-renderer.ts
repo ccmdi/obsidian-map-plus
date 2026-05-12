@@ -646,7 +646,7 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
         initialViewState: { MapView: initialViewState },
         controller: {
             inertia: true,
-            scrollZoom: { speed: 0.02, smooth: true },
+            scrollZoom: { speed: settings.scrollZoomSpeed, smooth: true },
             touchRotate: false,
             keyboard: false,
             dragRotate: false,
