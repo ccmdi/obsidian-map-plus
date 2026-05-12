@@ -1,5 +1,6 @@
 .bases-view.bases-view-map {
     padding: 0px;
+    overflow: hidden;
 }
 
 .bases-map-container {
