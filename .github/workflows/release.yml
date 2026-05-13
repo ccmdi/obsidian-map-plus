@@ -28,6 +28,7 @@ jobs:
           subject-path: |
             main.js
             manifest.json
+            styles.css
       - name: Create release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
