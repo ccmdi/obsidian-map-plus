@@ -1,7 +1,7 @@
 {
 	"id": "mapplus",
 	"name": "Map+",
-	"version": "1.1.3",
+	"version": "1.1.4",
 	"minAppVersion": "1.10.0",
 	"description": "A performant and customizable map inside Bases.",
 	"author": "ccmdi",
