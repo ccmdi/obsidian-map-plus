@@ -5,9 +5,6 @@ A performant and customizable map layout for Obsidian Bases. This plugin functio
 ![Preview](images/preview.png)
 ![Settings](images/settings.png)
 
-## Installation
-You can install this plugin with [BRAT](https://github.com/TfTHacker/obsidian42-brat), or directly [from the releases](https://github.com/ccmdi/obsidian-map-plus/releases).
-
 ## Usage
 
 ### Setting up coordinates
