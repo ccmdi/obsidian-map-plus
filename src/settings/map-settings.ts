@@ -34,13 +34,26 @@ export const DEFAULT_SETTINGS: MapPluginSettings = {
 
 export class MapSettingTab extends PluginSettingTab {
     plugin: MapPlugin;
+    private activeIntervals: number[] = [];
 
     constructor(app: App, plugin: MapPlugin) {
         super(app, plugin);
         this.plugin = plugin;
     }
 
+    hide(): void {
+        this.clearActiveIntervals();
+    }
+
+    private clearActiveIntervals(): void {
+        for (const id of this.activeIntervals) {
+            window.clearInterval(id);
+        }
+        this.activeIntervals = [];
+    }
+
     display(): void {
+        this.clearActiveIntervals();
         const { containerEl } = this;
         containerEl.empty();
         containerEl.classList.add('map-settings-container');
@@ -53,6 +66,7 @@ export class MapSettingTab extends PluginSettingTab {
             .setName('Latitude key')
             .setDesc('Frontmatter key for latitude (default for all bases)')
             .addText(text => text
+                // eslint-disable-next-line obsidianmd/ui/sentence-case -- frontmatter key name
                 .setPlaceholder('lat')
                 .setValue(this.plugin.settings.latKey)
                 .onChange(async (value) => {
@@ -67,6 +81,7 @@ export class MapSettingTab extends PluginSettingTab {
             .setName('Longitude key')
             .setDesc('Frontmatter key for longitude (default for all bases)')
             .addText(text => text
+                // eslint-disable-next-line obsidianmd/ui/sentence-case -- frontmatter key name
                 .setPlaceholder('lng')
                 .setValue(this.plugin.settings.lngKey)
                 .onChange(async (value) => {
@@ -171,7 +186,7 @@ export class MapSettingTab extends PluginSettingTab {
         if (this.plugin.settings.enableThumbnailCache) {
             new Setting(containerEl)
                 .setName('Thumbnail target size')
-                .setDesc('Target file size for cached thumbnails (in KB)')
+                .setDesc('Target file size for cached thumbnails in kilobytes')
                 .addSlider(slider => slider
                     .setLimits(10, 50, 5)
                     .setValue(this.plugin.settings.thumbnailTargetSize)
@@ -209,6 +224,7 @@ export class MapSettingTab extends PluginSettingTab {
                         this.display();
                     }
                 }, 500);
+                this.activeIntervals.push(refreshInterval);
             } else {
                 statusSetting.addButton(button => button
                     .setButtonText('Rebuild cache')
@@ -219,6 +235,7 @@ export class MapSettingTab extends PluginSettingTab {
                         const progressInterval = window.setInterval(() => {
                             updateStatus();
                         }, 500);
+                        this.activeIntervals.push(progressInterval);
                         
                         // force refresh markers for cover context
                         this.plugin.refreshAllMapViews();

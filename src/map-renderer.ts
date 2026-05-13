@@ -613,6 +613,7 @@ export function createMapRenderer(config: MapRendererOptions): Deck<MapViewType[
                 } else if (Array.isArray(prop.value)) {
                     valueEl.textContent = prop.value.join(', ');
                 } else if (prop.value === null) {
+                    // eslint-disable-next-line obsidianmd/ui/sentence-case -- data value, not UI label
                     valueEl.textContent = 'null';
                 } else if (typeof prop.value === 'boolean') {
                     valueEl.textContent = String(prop.value);
