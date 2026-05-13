@@ -66,8 +66,7 @@ export class MapSettingTab extends PluginSettingTab {
             .setName('Latitude key')
             .setDesc('Frontmatter key for latitude (default for all bases)')
             .addText(text => text
-                // eslint-disable-next-line obsidianmd/ui/sentence-case -- frontmatter key name
-                .setPlaceholder('lat')
+                .setPlaceholder('Lat')
                 .setValue(this.plugin.settings.latKey)
                 .onChange(async (value) => {
                     this.plugin.settings.latKey = value;
@@ -81,8 +80,7 @@ export class MapSettingTab extends PluginSettingTab {
             .setName('Longitude key')
             .setDesc('Frontmatter key for longitude (default for all bases)')
             .addText(text => text
-                // eslint-disable-next-line obsidianmd/ui/sentence-case -- frontmatter key name
-                .setPlaceholder('lng')
+                .setPlaceholder('Lng')
                 .setValue(this.plugin.settings.lngKey)
                 .onChange(async (value) => {
                     this.plugin.settings.lngKey = value;

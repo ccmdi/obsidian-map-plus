@@ -12,6 +12,8 @@ import { MapBasesView } from './map-bases-view';
 export const MapTimelineBasesViewType = 'map-timeline';
 const MAP_SLIDER_UPDATE_DEBOUNCE_TIME = 10;
 const MAP_UPDATE_DEBOUNCE_TIME = 50;
+const DATE_FORMAT_DAILY = 'YYYY-MM-DD';
+const DATE_FORMAT_MONTHLY = 'YYYY-MM';
 
 interface TimelineMapPoint extends MapPoint {
     date: number;
@@ -297,10 +299,10 @@ export class MapTimelineBasesView extends MapBasesView {
             dateInputEl.placeholder = 'YYYY';
         } else if (granularity === 'monthly') {
             dateInputEl.value = `${year}-${month}`;
-            dateInputEl.placeholder = 'YYYY-MM'; // eslint-disable-line obsidianmd/ui/sentence-case -- date format
+            dateInputEl.placeholder = DATE_FORMAT_MONTHLY;
         } else {
             dateInputEl.value = `${year}-${month}-${day}`;
-            dateInputEl.placeholder = 'YYYY-MM-DD'; // eslint-disable-line obsidianmd/ui/sentence-case -- date format
+            dateInputEl.placeholder = DATE_FORMAT_DAILY;
         }
     }
 
@@ -558,7 +560,7 @@ export class MapTimelineBasesView extends MapBasesView {
     }
 
     static getViewOptions(): ViewOption[] {
-        const baseOptions = MapBasesView.getViewOptions();
+        const baseOptions: ViewOption[] = MapBasesView.getViewOptions();
 
         const timelineOptions: ViewOption[] = [
             {

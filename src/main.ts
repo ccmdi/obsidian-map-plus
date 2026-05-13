@@ -1,4 +1,4 @@
-import { Plugin } from 'obsidian';
+import { Plugin, ViewOption } from 'obsidian';
 import { MapBasesView } from './views/map-bases-view';
 import { MapTimelineBasesView } from './views/map-timeline-bases-view';
 import { MapTagSettings } from './settings/map-tag-settings';
@@ -30,7 +30,7 @@ export default class MapPlugin extends Plugin {
 			name: 'Map',
 			icon: 'lucide-map',
 			factory: (controller, containerEl) => new MapBasesView(controller, containerEl, this),
-			options: () => MapBasesView.getViewOptions(),
+			options: (): ViewOption[] => MapBasesView.getViewOptions(),
 		});
 
         if (this.settings.enableTimelineView) {
@@ -62,7 +62,7 @@ export default class MapPlugin extends Plugin {
 			name: 'Map timeline',
 			icon: 'lucide-calendar',
 			factory: (controller, containerEl) => new MapTimelineBasesView(controller, containerEl, this),
-			options: () => MapTimelineBasesView.getViewOptions(),
+			options: (): ViewOption[] => MapTimelineBasesView.getViewOptions(),
 		});
     }
 }
