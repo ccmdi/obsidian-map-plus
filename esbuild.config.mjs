@@ -11,6 +11,30 @@ if you want to view the source, please visit the github repository of this plugi
 
 const prod = (process.argv[2] === "production");
 
+// Strip debug/dynamic script loading utilities from luma.gl and loaders.gl.
+// These create <script> elements that trigger Obsidian's static analysis scanner.
+// None are called by this plugin.
+const stripDynamicScriptsPlugin = {
+	name: "strip-dynamic-scripts",
+	setup(build) {
+		// luma.gl: debug-only SpectorJS / WebGL dev tools loader
+		build.onLoad({ filter: /load-script\.[jt]s$/ }, () => ({
+			contents: "export async function loadScript() { throw new Error('not available'); }",
+			loader: "ts",
+		}));
+		// loaders.gl: dynamic library loader that injects script elements
+		build.onLoad({ filter: /library-utils\.[jt]s$/ }, async (args) => {
+			const fs = await import("fs");
+			let contents = fs.readFileSync(args.path, "utf8");
+			contents = contents.replace(
+				/const script = document\.createElement\(['"]script['"]\);[\s\S]*?document\.body\.appendChild\(script\);\s*return null;/,
+				"return null;",
+			);
+			return { contents, loader: "ts" };
+		});
+	},
+};
+
 const context = await esbuild.context({
 	banner: {
 		js: banner,
@@ -37,6 +61,7 @@ const context = await esbuild.context({
 	logLevel: "info",
 	sourcemap: prod ? false : "inline",
 	treeShaking: true,
+	plugins: [stripDynamicScriptsPlugin],
 	outfile: "main.js",
 	minify: prod,
 });
